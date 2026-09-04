@@ -112,6 +112,12 @@ launcher: `bootstrap.sh` still starts Claude implementers.
 
 From this plugin's directory:
 
+Each user creates their own bot with [BotFather](https://t.me/BotFather), supplies
+their own token during `setup`, and pairs their own Telegram account. There is
+no shared project bot, token, or hardcoded account allowlist. Credentials,
+pairing, agent registrations, and message history belong to the local instance,
+not the plugin or the project repository.
+
 ```bash
 python3 scripts/telegram_bridge.py setup
 # Enter the bot token at the hidden prompt. Send the printed /pair command
@@ -130,6 +136,20 @@ the code cannot be reused after pairing. The token and state live under
 `~/.config/workstreams/telegram/`, outside the repo, with owner-only permissions.
 Use `--state-dir PATH` before the subcommand to select another state directory;
 `WORKSTREAMS_TELEGRAM_STATE` provides the same override for bootstrap.
+
+For another bot or an independent configuration, use a separate state directory
+consistently for setup, registration, the running bridge, and bootstrap:
+
+```bash
+export WORKSTREAMS_TELEGRAM_STATE="$HOME/.config/workstreams/another-telegram"
+python3 scripts/telegram_bridge.py setup
+python3 scripts/telegram_bridge.py register orchestrator --pane <pane-id> --default
+python3 scripts/telegram_bridge.py run
+```
+
+Use one running bridge per bot token. This POC pairs one account per instance;
+shared team access and additional chat transports are future extensions, not
+assumptions built into the workstream roles.
 
 On your phone:
 
