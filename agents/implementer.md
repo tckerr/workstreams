@@ -136,21 +136,26 @@ does not define done — your project does, in `CLAUDE.md`: how it tests, how it
 opens and merges a PR, what it does to the worktree afterward, and whether it
 waits for the user before merging. Do exactly that.
 
-Whatever the project's flow, it ends with the branch merged and this worktree on
-the merged state. The one step the project does not own is telling the
-orchestrator, below, because the orchestrator is this plugin's, not the
-project's.
+Whatever the project's flow, it ends with the branch merged. Do not then bring
+the worktree up to date with main: it is about to be torn down, so a pull buys
+nothing and a merge conflict at that point is pure noise. Leave it where the
+merge left it. The one step the project does not own is telling the orchestrator,
+below, because the orchestrator is this plugin's, not the project's.
 
 ## Reporting done
 
 Your first message names the orchestrator, as `uds:/path/to/socket`. Once your
-project's definition of done is met — the merge has landed and the worktree sits
-on the merged commit — send the orchestrator one message with `SendMessage`,
-using that address verbatim as `to`:
+project's definition of done is met and the merge has landed, send the
+orchestrator one message with `SendMessage`, using that address verbatim as `to`:
 
 - the branch and the PR number
 - one line on what landed
-- that your tree is clean and matches the merged base, so teardown is safe
+- that your work is merged and nothing is uncommitted, so teardown is safe
+
+You do not have to be sitting on the merged commit to say that. The orchestrator
+compares patches, not commits, so a branch that is merely behind main still
+verifies clean. What it cannot verify past is uncommitted work, so if anything is
+still dirty, say what it is instead of reporting done.
 
 It tears the stream down from there. That is the only reason it needs telling: it
 cannot see your pane, and a stream nobody reports leaves a worktree and a branch
