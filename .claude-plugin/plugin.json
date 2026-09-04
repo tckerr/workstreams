@@ -1,7 +1,7 @@
 {
   "name": "workstreams",
   "description": "Parallel workstreams over herdr worktrees. An orchestrator provisions isolated streams; an implementer runs in each. Both read per-repo specs, so the plugin carries no project knowledge.",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "author": {
     "name": "Tom Kerr"
   },
