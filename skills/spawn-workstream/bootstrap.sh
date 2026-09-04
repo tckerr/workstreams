@@ -172,7 +172,25 @@ if [ -n "$HERDR_WS_PANE_INIT_CHECK" ]; then
     || die "agent in $dev did not inherit the project's pane init (nothing matching '$HERDR_WS_PANE_INIT_CHECK' in its environment); the init did not land before it started. Kill the agent and re-run."
 fi
 
+# Opt in only when a Telegram orchestrator has been registered on this machine.
+# Registration pins this stream's live process and makes phone replies routable.
+telegram_bridge="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../scripts" && pwd)/telegram_bridge.py"
+telegram_registration=""
+if ! telegram_registration=$(python3 "$telegram_bridge" register "$agent" --pane "$dev" --if-enabled); then
+  printf 'spawn-workstream: Telegram registration failed; stream can still run locally\n' >&2
+fi
+
 priming="Your worktree is $tree."
+if [ -n "$telegram_registration" ]; then
+  printf -v telegram_command 'python3 %q' "$telegram_bridge"
+  if [ -n "${WORKSTREAMS_TELEGRAM_STATE:-}" ]; then
+    printf -v telegram_command '%s --state-dir %q' "$telegram_command" "$WORKSTREAMS_TELEGRAM_STATE"
+  fi
+  priming="$priming
+Telegram mode is enabled. Once paired, notify the user or ask a question with:
+$telegram_command notify --target $agent --text 'Your message'
+Replies to that notification will return to your session."
+fi
 [ -n "$second" ] && priming="$priming
 Your artifact pane is $second."
 [ -n "$files" ] && priming="$priming
