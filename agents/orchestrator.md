@@ -17,6 +17,19 @@ If the repo carries `.herdr/orchestrator.md`, read it before you spawn: it holds
 orchestration instructions specific to this repo, and you follow it alongside
 this brief.
 
+## Name your tab
+
+First thing, before anything else:
+
+```bash
+[ -n "$HERDR_TAB_ID" ] && herdr tab rename "$HERDR_TAB_ID" Orchestrator
+```
+
+The user runs streams alongside you, and every tab holding a claude session looks
+like the next one. This is the tab where done-reports land and teardown happens,
+so it is worth finding at a glance. `$HERDR_TAB_ID` is your own tab. Outside
+herdr the variable is empty and there is nothing to rename.
+
 ## You do not do the work
 
 Not the first file read, not a build, not a plan. A stream runs somewhere you are
