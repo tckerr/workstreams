@@ -1,0 +1,17 @@
+{
+  "name": "herdr",
+  "owner": {
+    "name": "Tom Kerr"
+  },
+  "metadata": {
+    "description": "herdr parallel-dev orchestration"
+  },
+  "plugins": [
+    {
+      "name": "herdr",
+      "source": "./",
+      "description": "Orchestrator and implementer agents plus the parallel-dev skill for running isolated worktree streams over herdr.",
+      "version": "0.1.0"
+    }
+  ]
+}

@@ -1,0 +1,10 @@
+{
+  "name": "herdr",
+  "description": "Parallel-dev orchestration over herdr worktrees. An orchestrator provisions isolated streams; an implementer runs in each. Both read a per-project config, so the plugin carries no project knowledge.",
+  "version": "0.1.0",
+  "author": {
+    "name": "Tom Kerr"
+  },
+  "repository": "https://github.com/tckerr/herdr-orchestration",
+  "license": "MIT"
+}
