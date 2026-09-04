@@ -7,13 +7,13 @@ isolation, reporting back when its branch lands.
 
 The plugin holds no knowledge of any particular repo. How to build, how to test,
 whether there is a live artifact to keep running, and what "done" means all come
-from the repo itself. So the same orchestrator drives a Rust game and a web app
+from the repo itself. So the same orchestrator serves very different repos
 without changing.
 
 ## Install
 
 ```bash
-claude plugin marketplace add tckerr/herdr-orchestration
+claude plugin marketplace add tckerr/claude-plugins
 claude plugin install workstreams@tckerr
 ```
 
@@ -41,7 +41,7 @@ rarely write them by hand.
 | --- | --- |
 | `HERDR_WS_SECOND_PANE_LABEL` | Label for the live-artifact pane. Its presence is what opens a second pane at all; empty means dev pane only. |
 | `HERDR_WS_SURVIVOR_GLOB` | The path fragment the teardown check looks for to catch a process still serving a removed worktree. |
-| `HERDR_WS_DEFAULT_CONFIG_DIR` | The Claude profile (a separate usage allowance) streams run under. |
+| `HERDR_WS_DEFAULT_CONFIG_DIR` | The Claude profile streams run under, so they can spend a separate usage allowance. Leave it empty to run them under the orchestrator's own profile. |
 | `HERDR_WS_DEFAULT_MODEL` | The model streams run on. |
 
 Three keys override the defaults for a single spawn, on the command line:
@@ -70,11 +70,11 @@ that the merge landed and teardown is safe.
 ## Branch and workspace names
 
 A stream's slug becomes the branch name, and its spaced form the workspace label.
-There are no configurable prefixes. A repo that wants a branch convention like
-`rd/<slug>` expresses it in its own tooling, not here.
+There are no configurable prefixes. A repo that wants a naming convention
+expresses it in its own tooling, not here.
 
 ## Layout
 
 - `agents/orchestrator.md`, `agents/implementer.md` — the two roles.
 - `skills/spawn-workstream/` — the spawn skill and its `bootstrap.sh`.
-- `.claude-plugin/` — the plugin and marketplace manifests.
+- `.claude-plugin/plugin.json` — the plugin manifest.
