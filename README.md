@@ -43,6 +43,8 @@ rarely write them by hand.
 | `HERDR_WS_SURVIVOR_GLOB` | The path fragment the teardown check looks for to catch a process still serving a removed worktree. |
 | `HERDR_WS_DEFAULT_CONFIG_DIR` | The Claude profile streams run under, so they can spend a separate usage allowance. Leave it empty to run them under the orchestrator's own profile. |
 | `HERDR_WS_DEFAULT_MODEL` | The model streams run on. |
+| `HERDR_WS_PANE_INIT` | Command run in the pane before the agent starts, to select a toolchain the project pins. Empty leaves the pane as the machine leaves it. |
+| `HERDR_WS_PANE_INIT_CHECK` | String that must appear in the started agent's environment for the init to count as landed. Empty skips the check. |
 
 Three keys override the defaults for a single spawn, on the command line:
 `HERDR_WS_DESC` (labels the dev pane), `HERDR_WS_MODEL`, and `HERDR_WS_CONFIG_DIR`.
@@ -66,6 +68,18 @@ waits for you first, and what it does to the worktree afterward. One repo squash
 and resets to `origin/main`; another does not. The implementer follows whatever
 the repo says, then sends the orchestrator the one message the repo does not own:
 that the merge landed and teardown is safe.
+
+## Setup faults go back to the orchestrator
+
+A stream that cannot build, or cannot isolate its state, does not patch its way
+around the problem. It sends the orchestrator what it ran and what broke, and
+waits. The orchestrator repairs the repo's spec, commits it, and tells the
+stream. Where the report does not say enough to place the fault, or the fix is a
+decision rather than a repair, it asks you instead.
+
+A fix in the spec is one the next stream inherits. A stream that quietly pointed
+at the machine-wide store, or skipped its isolation export, would get past its
+own error and leave the fault there for every stream after it.
 
 ## Branch and workspace names
 
