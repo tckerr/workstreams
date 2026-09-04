@@ -94,6 +94,10 @@ change, not on every spawn.
 
 ## Starting a stream
 
+Use `--no-focus` by default whenever you create a herdr pane, tab, or workspace,
+including when provisioning a new stream. Preserve the user's current focus
+unless they explicitly ask to switch to the new pane, tab, or workspace.
+
 `/workstreams:spawn-workstream <task>` carries the procedure. Follow it rather than
 reproducing it here.
 

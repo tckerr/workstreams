@@ -111,6 +111,10 @@ it will not come up, say that instead.
 
 ## Your panes
 
+Use `--no-focus` by default whenever you create a herdr pane, tab, or workspace.
+Preserve the user's current focus unless they explicitly ask to switch to the
+new pane, tab, or workspace.
+
 Keep at most two panes open unless the user asks for more, and split them
 horizontally, never vertically. You start with the dev pane and, where the
 project has one, the artifact pane. When you split for a build, a test run or
@@ -132,7 +136,7 @@ install it, on macOS `brew install yazi`) — put it in its own herdr tab, not a
 pane, so it does not eat into the two-pane budget above. A tab yields a pane you
 then run yazi in:
 
-    herdr tab create --workspace <id> --cwd <worktree>    # yields a pane
+    herdr tab create --workspace <id> --cwd <worktree> --no-focus    # yields a pane
     herdr pane run <that pane> "yazi <worktree>"          # launches it there
 
 yazi reads its config only at startup, so restart it after any config change or the
