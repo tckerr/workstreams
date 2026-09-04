@@ -77,6 +77,45 @@ if [ -n "$HERDR_WS_SECOND_PANE_LABEL" ]; then
   herdr pane rename "$second" "$HERDR_WS_SECOND_PANE_LABEL" >/dev/null
 fi
 
+# A file browser for the worktree, in its own tab so it stays out of the
+# two-pane budget the implementer works under. yazi's preview pane reads a source
+# tree well; install it if the machine lacks it. This is a convenience, not part
+# of the stream, so every step here is best-effort and never aborts the spawn.
+files=""
+have_yazi=0
+if command -v yazi >/dev/null 2>&1; then
+  have_yazi=1
+elif [ "$(uname)" = Darwin ]; then
+  brew install yazi >/dev/null 2>&1 && have_yazi=1
+fi
+if [ "$have_yazi" = 1 ]; then
+  files=$(herdr tab create --workspace "$workspace" --cwd "$tree" --label Files \
+    --no-focus | field '["root_pane"]["pane_id"]') || files=""
+  [ -n "$files" ] && { herdr pane run "$files" "yazi $tree" >/dev/null 2>&1 || true; }
+fi
+
+# A git viewer for the branch, in its own tab. lazygit shows the working tree —
+# unstaged and staged changes — and the branch's commit log, with diffs, at a
+# glance. Same best-effort contract as the file browser above.
+gitview=""
+have_lazygit=0
+if command -v lazygit >/dev/null 2>&1; then
+  have_lazygit=1
+elif [ "$(uname)" = Darwin ]; then
+  brew install lazygit >/dev/null 2>&1 && have_lazygit=1
+fi
+if [ "$have_lazygit" = 1 ]; then
+  gitview=$(herdr tab create --workspace "$workspace" --cwd "$tree" --label Git \
+    --no-focus | field '["root_pane"]["pane_id"]') || gitview=""
+  [ -n "$gitview" ] && { herdr pane run "$gitview" "lazygit" >/dev/null 2>&1 || true; }
+fi
+
+# A bare shell in the worktree, for the user to poke around in — a one-off
+# command, a grep, a look at a file — without interrupting the agent's dev pane.
+# The tab's own pane is already a shell, so there is nothing to launch.
+shell=$(herdr tab create --workspace "$workspace" --cwd "$tree" --label Shell \
+  --no-focus | field '["root_pane"]["pane_id"]') || shell=""
+
 model=${HERDR_WS_MODEL:-$HERDR_WS_DEFAULT_MODEL}
 model_args=(--model "$model")
 
@@ -136,6 +175,15 @@ fi
 priming="Your worktree is $tree."
 [ -n "$second" ] && priming="$priming
 Your artifact pane is $second."
+[ -n "$files" ] && priming="$priming
+A file browser (yazi) is already open in the Files tab, pane $files. It is
+there for the user; do not open another unless you have a real reason to."
+[ -n "$gitview" ] && priming="$priming
+A git viewer (lazygit) is already open in the Git tab, pane $gitview —
+working-tree changes and the branch's commits. Same as above: reuse it."
+[ -n "$shell" ] && priming="$priming
+A bare Shell tab, pane $shell, is there for the user to poke around in. Leave
+it for them; do your own work in the dev pane."
 
 # herdr cannot address the orchestrator: it names only the agents it started,
 # and the orchestrator is a plain pane. The cross-session socket reaches it.
@@ -170,6 +218,9 @@ branch     $branch
 worktree   $tree
 dev pane   $dev "$desc" (agent: $agent)
 artifact   ${second:-(none)}${second:+ ($HERDR_WS_SECOND_PANE_LABEL)}
+files      ${files:-(none)}${files:+ (yazi, Files tab)}
+git        ${gitview:-(none)}${gitview:+ (lazygit, Git tab)}
+shell      ${shell:-(none)}${shell:+ (Shell tab)}
 survivor   $HERDR_WS_SURVIVOR_GLOB
 model      $model
 profile    ${config_dir:-(the orchestrator)}

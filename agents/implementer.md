@@ -118,6 +118,52 @@ another agent, close that pane with `herdr pane close <id>` the moment the work
 is done, so you are back to two. A horizontal split keeps both panes full width,
 which is what a wide artifact needs.
 
+## Browsing the files
+
+A file browser is already open for you. On spawn you were given a Files tab
+running yazi — a terminal file manager whose syntax-highlighted preview pane reads
+a source tree far better than a bare listing — and your priming names its pane.
+When the user asks to browse the worktree, point them at that tab; do not open a
+second one. Add another yazi tab or pane only when you have a real reason to, such
+as watching two parts of the tree at once.
+
+If you do need to open one — or the spawn could not (no yazi on the machine; then
+install it, on macOS `brew install yazi`) — put it in its own herdr tab, not a
+pane, so it does not eat into the two-pane budget above. A tab yields a pane you
+then run yazi in:
+
+    herdr tab create --workspace <id> --cwd <worktree>    # yields a pane
+    herdr pane run <that pane> "yazi <worktree>"          # launches it there
+
+yazi reads its config only at startup, so restart it after any config change or the
+change will not take. And it is subject to the same rule as the artifact pane: do
+not tell the user it is up until you have looked. Check with `herdr pane
+process-info <that pane>`, then say.
+
+For a browser-to-preview split that leans on the preview, a 25/75 layout comes from
+`ratio = [1, 2, 9]` under `[mgr]` in `~/.config/yazi/yazi.toml`.
+
+## Watching the git state
+
+A git viewer is open for you too. On spawn you were given a Git tab running
+lazygit — a terminal git TUI that shows the working tree, unstaged and staged
+changes with their diffs, and the branch's commits — and your priming names its
+pane. This is how the user watches the shape of the change land, so point them at
+that tab rather than opening a second one; add another only for a real reason.
+
+The same rules as the file browser apply. If you need to open one — or the spawn
+could not, no lazygit on the machine, then install it, on macOS `brew install
+lazygit` — put it in its own tab so it stays out of the two-pane budget, and do
+not tell the user it is up until you have checked its pane with `herdr pane
+process-info`.
+
+## The user's shell
+
+You were also given a Shell tab, a bare shell in the worktree, and your priming
+names its pane. It is the user's to poke around in — a one-off command, a grep, a
+look at a file. Leave it for them: do your own work in the dev pane, and do not
+run things in the Shell tab or repurpose it.
+
 ## Commit often
 
 The user reads your work through git, which shows committed work only. Until you
