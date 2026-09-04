@@ -31,6 +31,8 @@ source "$config" || die "could not source $config"
 : "${HERDR_WS_SURVIVOR_GLOB:=target}"
 : "${HERDR_WS_DEFAULT_MODEL:=claude-opus-4-8}"
 : "${HERDR_WS_DEFAULT_CONFIG_DIR:=}"
+: "${HERDR_WS_PANE_INIT:=}"
+: "${HERDR_WS_PANE_INIT_CHECK:=}"
 
 branch="$slug"
 label="${slug//-/ }"
@@ -88,6 +90,15 @@ if [ -n "$config_dir" ]; then
     || die "could not set the profile on $dev"
 fi
 
+# The pane is a shell and the agent inherits its environment, so a toolchain the
+# project needs — a node version, a language runtime — has to be selected here,
+# before the agent starts. A stream on the wrong one reports failures that are
+# really the environment, and the user chases them as if they were the change.
+if [ -n "$HERDR_WS_PANE_INIT" ]; then
+  herdr pane run "$dev" "$HERDR_WS_PANE_INIT" >/dev/null \
+    || die "could not run the project's pane init on $dev"
+fi
+
 herdr agent start "$agent" --kind claude --pane "$dev" \
   -- --dangerously-skip-permissions --effort high --agent workstreams:implementer \
   "${model_args[@]+"${model_args[@]}"}" >/dev/null \
@@ -113,6 +124,13 @@ pid=$(agent_pid "$dev")
 if [ -n "$config_dir" ]; then
   ps eww -p "$pid" 2>/dev/null | tr ' ' '\n' | grep -qxF "CLAUDE_CONFIG_DIR=$config_dir" \
     || die "agent in $dev is not under $config_dir; the profile export did not land before it started. Kill the agent and re-run."
+fi
+
+# Same lost race as the profile export: pane run returns before the init has
+# landed, and a stream on the default toolchain says nothing about it.
+if [ -n "$HERDR_WS_PANE_INIT_CHECK" ]; then
+  ps eww -p "$pid" 2>/dev/null | grep -qF "$HERDR_WS_PANE_INIT_CHECK" \
+    || die "agent in $dev did not inherit the project's pane init (nothing matching '$HERDR_WS_PANE_INIT_CHECK' in its environment); the init did not land before it started. Kill the agent and re-run."
 fi
 
 priming="Your worktree is $tree."
@@ -154,7 +172,7 @@ dev pane   $dev "$desc" (agent: $agent)
 artifact   ${second:-(none)}${second:+ ($HERDR_WS_SECOND_PANE_LABEL)}
 survivor   $HERDR_WS_SURVIVOR_GLOB
 model      $model
-profile    ${config_dir:-(orchestrator's)}
+profile    ${config_dir:-(the orchestrator)}
 address    ${sock:-(not resolved; find it with ListAgents)}
 agent is   $status
 SUMMARY

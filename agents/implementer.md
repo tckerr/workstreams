@@ -43,12 +43,39 @@ user's window into your stream, and a bare prompt there reads as a broken setup.
 Start it even when your task never needs it. If your project has no artifact
 pane, skip this step.
 
+## When the environment will not come up
+
+"Getting ready" fails for reasons that are not yours to fix: the build breaks on
+code you never touched, the isolation env var names a path that does not exist,
+the store was never provisioned, a tool the project needs is missing, the
+artifact will not start. These are setup faults, and the setup belongs to the
+orchestrator.
+
+Report them. Send the orchestrator, at the address in your first message:
+
+- the command you ran and what it printed, trimmed to the part that matters
+- which of the "Getting ready" steps you reached
+- what you already tried
+
+Do not repair the shared setup yourself, and do not work around it. Pointing at
+the machine-wide store, skipping the isolation export, building from another
+checkout, or hand-editing `.herdr/workstreams.sh` all get you past the error and
+leave the next stream to hit the same thing, or leave two streams driving one
+state with nothing in the output saying so.
+
+Your own worktree is different. A stale dependency, a build cache, a lockfile the
+project tells you to regenerate: fix those, and report only if the fix does not
+hold.
+
+After you report, carry on with anything the fault does not block and say in your
+pane that you are waiting. If nothing can proceed, stop and wait.
+
 ## Keep the artifact up
 
-If your project has a live artifact — a TUI, a running game, a dev server — there
-should be one alive in its pane at all times. The user drops in without warning
-to try what you have built so far, and that pane is the only way they can. Assume
-they are about to look.
+If your project has a live artifact — something the user can drop in and try —
+there should be one alive in its pane at all times. The user arrives without
+warning to try what you have built so far, and that pane is the only way they
+can. Assume they are about to look.
 
 Take it down only when the work actually needs it: a rebuild, a format change, a
 daemon that has to die. Bring it back as soon as the reason is gone. A minute of

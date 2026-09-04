@@ -42,15 +42,22 @@ configuring the repo, then write it. Two files, plus one optional third:
 `.herdr/workstreams.sh` — the mechanical values `bootstrap.sh` reads. Ask about
 each in the user's terms, not the variable's:
 
-- **live artifact pane** (`HERDR_WS_SECOND_PANE_LABEL`) — whether there is
-  something the user drops in to try (a TUI, a game, a dev server) that should run
-  in a second pane, and what to call it. Empty means dev pane only.
+- **live artifact pane** (`HERDR_WS_SECOND_PANE_LABEL`) — whether the project has
+  something the user drops in to try that should run in a second pane, and what to
+  call it. Empty means dev pane only.
 - **survivor pattern** (`HERDR_WS_SURVIVOR_GLOB`) — the path fragment that finds a
   process still serving the worktree after its pane closes, for the teardown
   check. Usually a build output dir like `target` or `node_modules/.bin`.
 - **profile and model defaults** (`HERDR_WS_DEFAULT_CONFIG_DIR`,
   `HERDR_WS_DEFAULT_MODEL`) — which Claude profile streams run under (a separate
   usage allowance from yours) and which model.
+- **pane init** (`HERDR_WS_PANE_INIT`, `HERDR_WS_PANE_INIT_CHECK`) — a command
+  run in the pane before the agent starts, for a toolchain the project pins and
+  the machine's default does not match: a node version, a language runtime. The
+  check is a string that must appear in the started agent's environment, so a
+  lost race fails the spawn instead of handing the user a stream whose test
+  failures are really the wrong toolchain. Both empty means the pane is used as
+  the machine leaves it.
 
 `.herdr/implementer.md` — the implementer's instructions for this repo, which the
 shell config cannot hold: how to **build**, how to **test**, how to **keep the
@@ -76,6 +83,33 @@ change, not on every spawn.
 
 `/workstreams:spawn-workstream <task>` carries the procedure. Follow it rather than
 reproducing it here.
+
+## When a stream cannot get ready
+
+A stream that fails to build, export its isolation env, provision its store or
+start its artifact reports the failure to you instead of working around it. The
+setup is yours, and a workaround inside one worktree leaves the fault in place
+for every stream after it.
+
+Read the report, then place the fault:
+
+- **the project's spec** — a wrong path, a missing variable, a build command that
+  has moved, a pane init that does not pin the toolchain the project needs. Fix
+  `.herdr/workstreams.sh` or `.herdr/implementer.md`, commit and push, then tell
+  the stream what changed. Its brief was fixed when it started, so the file alone
+  does not reach it.
+- **the machine** — a missing tool, an unprovisioned store, a stale global. Fix it
+  where it lives and tell the stream to retry.
+- **the stream's own worktree** — a build cache, a lockfile, a dependency it can
+  regenerate. Tell it what to run. You do not go in.
+
+Ask the user when the report does not say enough to place the fault, or when the
+fix is a project decision rather than a repair: whether to add a dependency,
+which command is now canonical, which store a stream should use. A guess here
+writes a wrong value into the spec that every later stream inherits.
+
+Placing the fault is the one reason to open the project's build setup. Read that
+far and no further. The stream's task is still not yours.
 
 ## When a stream reports done
 
@@ -139,8 +173,21 @@ the pane and the artifact, and those resources go with it. Anything still listed
 after that outlived its pane and is serving a directory that no longer exists —
 kill the pids, since the store went with the worktree.
 
-Then say what you removed, in a line or two. The workspace vanishing is otherwise
-the first the user hears of it.
+Then bring the main checkout up to date. A stream reporting done means its work
+just landed, so your `main` is behind by at least that merge:
+
+```bash
+git -C <main checkout> fetch origin
+git -C <main checkout> merge --ff-only origin/main
+```
+
+Do it every teardown. The next worktree is cut from `main`, and one cut from a
+stale main starts the stream on a base that is missing the change it may need
+and carries none of the conflict a fresh cut would surface early.
+
+Then say what you removed, in a line or two, and name anything the pull brought
+in beyond the stream's own work. The workspace vanishing is otherwise the first
+the user hears of it.
 
 Either check coming back non-empty stops the pass. Leave the branch alone and tell
 the user what is on it. A report that arrives before a merge is the stream's
