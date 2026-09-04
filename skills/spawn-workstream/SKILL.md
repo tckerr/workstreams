@@ -1,40 +1,31 @@
 ---
-name: parallel-dev
-description: Bootstrap an isolated stream of work in its own git worktree, herdr workspace and (where the project isolates one) store, start a fresh Claude Code implementer agent there, and stop. The agent waits for the user unless the invocation carried full instructions. Use when the user asks to work on something in parallel, to work in a worktree, or invokes the parallel-dev skill.
+name: spawn-workstream
+description: Bootstrap an isolated stream of work in its own git worktree, herdr workspace and (where the project isolates one) store, start a fresh Claude Code implementer agent there, and stop. The agent waits for the user unless the invocation carried full instructions. Use when the user asks to work on something in parallel, to work in a worktree, or invokes the spawn-workstream skill.
 ---
 
 # Parallel development
 
 Several agents work on one project at once without seeing each other's runs. Each
-stream gets a git worktree, a herdr workspace, and, where the project keeps
-per-worktree state, its own store.
+stream gets a git worktree, a herdr workspace, and, where the project defines one,
+a pane for a live artifact the user drops into.
 
-The store is the part that is easy to get wrong. Two checkouts that share a
-project's state directory drive each other's runs, and nothing in the output says
-so. The project's `.herdr/parallel-dev.sh` names the isolation, and `bootstrap.sh`
-applies it, so the problem cannot arise.
+The worktree isolates the code. If the project also keeps machine-wide runtime
+state that would collide across worktrees, isolating that is the implementer's
+job, per the repo's `.herdr/implementer.md`. The plugin does not touch it.
 
-## Which agent are you
+## You are spawning a stream
 
-Two roles matter. Find yours before doing anything.
-
-**Invoked as `/herdr:parallel-dev <task>`?** You are the orchestrator. This skill
-is one procedure only: provision the workspace, hand the task to a fresh
-implementer, and stop. Configuring the project and tearing streams down later are
-separate jobs that live in the orchestrator brief — see "After the stream lands"
+This skill is one procedure only: provision the workspace, hand the task to a
+fresh implementer, and stop. Configuring the project and tearing streams down
+later are separate jobs in the orchestrator brief. See "After the stream lands"
 at the end.
 
-A session started with `claude --agent herdr:orchestrator` already holds the full
-role from that brief; this skill adds the spawn procedure it does not carry
-inline.
-
-**Running as `herdr:implementer` in a worktree under `~/.herdr/worktrees/`?** You
-are the implementer, and your brief is already your system prompt. You do not need
-this skill.
+A `claude --agent workstreams:orchestrator` session already holds the full role; this
+skill adds the spawn procedure it does not carry inline.
 
 ## Prerequisite
 
-The target repo must have `.herdr/parallel-dev.sh`. `bootstrap.sh` fails without
+The target repo must have `.herdr/workstreams.sh`. `bootstrap.sh` fails without
 it rather than guessing defaults. If it is missing, the orchestrator configures
 the project first — that walkthrough is in the orchestrator brief, not here.
 
@@ -44,7 +35,7 @@ herdr binds a worktree to a workspace, so one stream is one workspace. A project
 with a live artifact gets a second pane; one without gets the dev pane only:
 
 ```
-Workspace "<label prefix><feature>"   w7
+Workspace "<feature>"                 w7
 └── tab "Primary"                     w7:t1
     ├── pane "dev"                     w7:p1   claude code, cwd = worktree
     └── pane "<artifact>"              w7:p2   the project's live artifact
@@ -52,8 +43,8 @@ Workspace "<label prefix><feature>"   w7
 
 ## Naming
 
-Pick a slug of two to four words for the feature, lowercase and hyphenated. The
-project's prefixes turn it into the branch and workspace label.
+Pick a slug of two to four words for the feature, lowercase and hyphenated. It
+is the branch name, and its spaced form the workspace label.
 
 # Bootstrap
 
@@ -70,13 +61,13 @@ build, in enough detail to act on without asking anything else.
 Pass the task only for the second kind:
 
 ```bash
-"${CLAUDE_PLUGIN_ROOT}/skills/parallel-dev/bootstrap.sh" <slug>                      # topic
-"${CLAUDE_PLUGIN_ROOT}/skills/parallel-dev/bootstrap.sh" <slug> <the task, verbatim> # task
+"${CLAUDE_PLUGIN_ROOT}/skills/spawn-workstream/bootstrap.sh" <slug>                      # topic
+"${CLAUDE_PLUGIN_ROOT}/skills/spawn-workstream/bootstrap.sh" <slug> <the task, verbatim> # task
 ```
 
 ## Naming the dev pane
 
-Always set `HPD_DESC`. It labels the dev pane with what is being built, so the
+Always set `HERDR_WS_DESC`. It labels the dev pane with what is being built, so the
 user scanning their workspaces reads the feature rather than the word "dev", which
 tells them nothing they cannot already see.
 
@@ -84,17 +75,17 @@ A short phrase in the user's own terms, roughly three to six words, no trailing
 punctuation. Not the branch name reworded: the slug is already the fallback.
 
 ```bash
-HPD_DESC="a bump effect and a damage flash" \
-  "${CLAUDE_PLUGIN_ROOT}/skills/parallel-dev/bootstrap.sh" <slug> <task>
+HERDR_WS_DESC="a bump effect and a damage flash" \
+  "${CLAUDE_PLUGIN_ROOT}/skills/spawn-workstream/bootstrap.sh" <slug> <task>
 ```
 
 ## Which profile a stream runs under
 
-Streams run under the project's `HPD_DEFAULT_CONFIG_DIR`, a Claude profile that is
+Streams run under the project's `HERDR_WS_DEFAULT_CONFIG_DIR`, a Claude profile that is
 a separate usage allowance from the one this orchestrator session spends, so a
 field full of streams does not exhaust the quota the user is typing against.
 
-`HPD_CONFIG_DIR` overrides it for one stream. The script fails rather than
+`HERDR_WS_CONFIG_DIR` overrides it for one stream. The script fails rather than
 starting if the profile directory is not there, because a stream that silently
 falls back to the default profile spends the allowance the switch exists to
 protect.
@@ -111,13 +102,13 @@ the agent did not start; read the pane before assuming the script failed.
 
 ## Choosing a model
 
-Streams run on the project's `HPD_DEFAULT_MODEL`. Set `HPD_MODEL` only when the
+Streams run on the project's `HERDR_WS_DEFAULT_MODEL`. Set `HERDR_WS_MODEL` only when the
 user names a different model for this stream, and leave it out of the task text,
 since a stream cannot act on an instruction about its own model:
 
 ```bash
-HPD_MODEL=claude-opus-5 HPD_DESC="..." \
-  "${CLAUDE_PLUGIN_ROOT}/skills/parallel-dev/bootstrap.sh" <slug> <task>
+HERDR_WS_MODEL=claude-opus-5 HERDR_WS_DESC="..." \
+  "${CLAUDE_PLUGIN_ROOT}/skills/spawn-workstream/bootstrap.sh" <slug> <task>
 ```
 
 With no task the agent comes up primed and idle, having read its instructions and
@@ -154,9 +145,9 @@ second one unless the user asks.
 
 The stream reports back when its merge lands, and its worktree, workspace and
 branch then need tearing down. That is the orchestrator's job, not this skill's.
-It lives in the orchestrator brief, `herdr:orchestrator`, together with the
+It lives in the orchestrator brief, `workstreams:orchestrator`, together with the
 messaging contract the report travels over.
 
-A `claude --agent herdr:orchestrator` session already holds that brief. A plain
-session that ran `/herdr:parallel-dev` does not, so read it when a stream reports
+A `claude --agent workstreams:orchestrator` session already holds that brief. A plain
+session that ran `/workstreams:spawn-workstream` does not, so read it when a stream reports
 done.

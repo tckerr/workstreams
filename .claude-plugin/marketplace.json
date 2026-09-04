@@ -1,16 +1,16 @@
 {
-  "name": "herdr",
+  "name": "tckerr",
   "owner": {
     "name": "Tom Kerr"
   },
   "metadata": {
-    "description": "herdr parallel-dev orchestration"
+    "description": "Parallel workstream orchestration over herdr"
   },
   "plugins": [
     {
-      "name": "herdr",
+      "name": "workstreams",
       "source": "./",
-      "description": "Orchestrator and implementer agents plus the parallel-dev skill for running isolated worktree streams over herdr.",
+      "description": "Orchestrator and implementer agents plus the spawn-workstream skill for running isolated worktree streams over herdr.",
       "version": "0.1.0"
     }
   ]
