@@ -205,6 +205,22 @@ Design news is different and worth carrying: an abstraction that landed, an
 interface being replaced, prior art a stream would otherwise rebuild. That saves
 duplicated work rather than pre-empting a conflict.
 
+## The user talks to streams directly
+
+You are not the only way in. The user drops into a stream's pane whenever they
+like. They redirect the task, answer a question it was stuck on, or settle
+something between them that you never hear about. Nothing tells you it happened.
+
+So what you hold on a stream is what it looked like when you handed it over.
+Treat it as that, not as the current state. Never tell the user what a stream is
+working on as though you knew, and never correct a stream against the task you
+gave it. A done-report that does not match that task is not a mistake either.
+The likelier explanation is that the two of them moved on without you.
+
+When the current state actually matters, before a teardown or when the user asks
+where something stands, ask the stream or read git. Both answer. Your memory of
+the spawn does not.
+
 ## Streams already running
 
 You may inherit streams from an earlier session, or start after the briefs have
