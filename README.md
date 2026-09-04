@@ -87,8 +87,111 @@ A stream's slug becomes the branch name, and its spaced form the workspace label
 There are no configurable prefixes. A repo that wants a naming convention
 expresses it in its own tooling, not here.
 
+## Telegram POC
+
+**Experimental: under development on
+[`telegram-bridge-poc`](https://github.com/tckerr/workstreams/tree/telegram-bridge-poc).
+Not part of the stable release.**
+
+The live phone → Codex → phone path has been exercised, and automated tests cover
+account restrictions, routing, receipt reactions, queuing, and interrupted
+delivery. Before merging this feature, we still need to validate the full
+workstream spawn/report/teardown flow, improve recovery from network failures and
+usage limits, and provide an unattended service lifecycle. For now, failed or
+ambiguous deliveries can require manual intervention.
+
+The optional bridge connects one private Telegram chat to an orchestrator and
+its registered streams. It uses Python 3.9+ with no third-party packages. Run it
+inside Herdr on the same Mac as the agents. It uses Telegram long polling, so
+there is no public server or inbound port to configure.
+
+The bridge uses Herdr's generic agent commands, so it can target Claude or Codex
+sessions. Register a Codex pane with `register codex-test --pane <pane-id>` and
+send `/to codex-test MESSAGE` on Telegram. This does not port the workstream
+launcher: `bootstrap.sh` still starts Claude implementers.
+
+From this plugin's directory:
+
+```bash
+python3 scripts/telegram_bridge.py setup
+# Enter the bot token at the hidden prompt. Send the printed /pair command
+# to your bot in a private Telegram chat.
+python3 scripts/telegram_bridge.py register orchestrator --pane <pane-id> --default
+python3 scripts/telegram_bridge.py run
+```
+
+Keep `run` alive in a background pane created with `--no-focus`. Stop it with
+Ctrl-C. This POC does not install a launch agent; the Mac must stay awake and
+connected. Restarting `run` preserves pairing, registrations, and queued work.
+
+The one-time pairing code binds a numeric Telegram user ID and private chat ID.
+Every incoming command checks both. Other accounts and groups are ignored, and
+the code cannot be reused after pairing. The token and state live under
+`~/.config/workstreams/telegram/`, outside the repo, with owner-only permissions.
+Use `--state-dir PATH` before the subcommand to select another state directory;
+`WORKSTREAMS_TELEGRAM_STATE` provides the same override for bootstrap.
+
+On your phone:
+
+- Send a new message to instruct the default orchestrator, including requests to
+  spawn workstreams using its existing project setup and rules.
+- Reply to an agent notification to address that agent directly.
+- `/to NAME MESSAGE` addresses another registered agent.
+- `/use NAME` chooses which agent receives new messages; replies still follow
+  their original agent route.
+- `/status` lists registered agents and delivery states.
+
+Each accepted message gets a 👀 reaction instead of an acknowledgement message.
+There is no delivery notification; the agent's answer replies to your original
+message. A failed reaction does not prevent the answer from being sent.
+
+When Telegram mode is enabled, newly bootstrapped streams register automatically.
+Already-running agents can be registered manually using the same `register`
+command without `--default`. Their installed briefs do not update automatically;
+the bridge sends a setup brief once when each registered session is idle. That
+brief explains how to reply, notify, and register new streams, so older role
+briefs work too. Later prompts contain only `Telegram request <id>:` and your
+message text, with no message files. Setup delivery is remembered per agent
+process and is not repeated when the bridge restarts.
+
+```bash
+# Send a question or alert; replies route back to this registered agent.
+python3 scripts/telegram_bridge.py notify --target orchestrator --text 'Which project should I use?'
+# The helper is explained once during setup; each message supplies a request ID.
+python3 scripts/telegram_bridge.py reply <request-id> --text 'Started the stream.'
+# Use --file PATH instead of --text for multiline responses.
+python3 scripts/telegram_bridge.py status
+python3 scripts/telegram_bridge.py unregister <agent-name>
+```
+
+Delivery waits for an idle/done agent and checks its terminal and foreground
+process identity. Replaced or missing agents never receive queued commands.
+Unregister and register again after restarting an agent. Unknown reply routes
+are rejected rather than sent to the default orchestrator.
+
+The bridge alerts once when a registered agent enters `blocked`. These dialogs
+must be handled in Herdr; the POC does not forward approval keystrokes. Questions
+sent through `notify` can be answered from your phone normally. It does not try
+to infer stalls from silence or scrape final answers from terminal output.
+Herdr may report a usage-limited session as `done`; this POC does not detect that
+screen separately. “Delivered” means the prompt was submitted, not that the
+agent has answered or completed the work.
+
+Incoming updates are deduplicated and stored before forwarding. A crash or
+timeout during delivery is marked `uncertain` and is not automatically retried,
+because the agent may already have acted. Check Herdr before resending. Outbound
+Telegram messages with ambiguous delivery are also marked `uncertain`; inspect
+local `status` for those counts. This POC favors avoiding duplicate actions over
+automatic retries and does not promise exactly-once delivery.
+
+```bash
+python3 -m unittest discover -s tests -v
+```
+
 ## Layout
 
 - `agents/orchestrator.md`, `agents/implementer.md` — the two roles.
 - `skills/spawn-workstream/` — the spawn skill and its `bootstrap.sh`.
 - `.claude-plugin/plugin.json` — the plugin manifest.
+- `scripts/telegram_bridge.py` — the optional local Telegram service and helpers.
+- `tests/` — bridge authorization, routing, and delivery tests.

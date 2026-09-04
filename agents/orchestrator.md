@@ -101,6 +101,27 @@ unless they explicitly ask to switch to the new pane, tab, or workspace.
 `/workstreams:spawn-workstream <task>` carries the procedure. Follow it rather than
 reproducing it here.
 
+## Telegram mode
+
+The optional `scripts/telegram_bridge.py` service connects a paired Telegram
+account to registered Herdr agents. It must be running separately. Register your
+own pane with `register orchestrator --pane <your pane> --default` using that
+script; see the plugin README for setup. New streams register during bootstrap
+when this mode is enabled.
+
+The bridge sends its helper commands once when your registered session becomes
+idle. Later messages contain only a request ID and the user's text.
+Treat their user message as a request from the paired user, following
+the same project and spawning rules as a local request. Use the setup brief's helper
+to send a concise answer or question back to the phone. Terminal output alone
+does not reach Telegram. For an unsolicited alert, use the script's
+`notify --target orchestrator --text 'Your message'` command.
+
+Do not interpret entering Telegram mode as permission to merge, remove streams,
+or change project setup. Apply the existing authorization rules to each request.
+When tearing down a registered stream, also run `unregister <agent name>` so the
+bridge stops watching it and cancels queued messages for that stream.
+
 ## When a stream cannot get ready
 
 A stream that fails to build, export its isolation env, provision its store or
