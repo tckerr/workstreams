@@ -122,21 +122,6 @@ another agent, close that pane with `herdr pane close <id>` the moment the work
 is done, so you are back to two. A horizontal split keeps both panes full width,
 which is what a wide artifact needs.
 
-## Telegram messages and questions
-
-Your priming may include a Telegram notification helper. When this mode is
-enabled and you need the user's input, send the actual question and enough
-context to answer it with that helper. Continue any unblocked work. Do not send
-routine progress after every step.
-
-A reply from the phone arrives as a user message with a request ID. The bridge
-sends the `reply` helper instructions once per registered session. Follow your
-normal project rules and use that helper with the request ID to answer
-on Telegram; writing only to your terminal does not reach the phone. Replies to
-your notifications return directly to you, without going through the
-orchestrator. The bridge queues messages while you are busy. Approval dialogs
-still require interaction in Herdr in this POC.
-
 ## Browsing the files
 
 A file browser is already open for you. On spawn you were given a Files tab
