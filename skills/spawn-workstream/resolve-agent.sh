@@ -84,12 +84,23 @@ resolve_agent() {
 #                         prompt fallback is taken)
 deliver_codex_brief() {
   local brief_file=$1 tree=$2
+  local reporting_file
+  reporting_file="$(dirname "${BASH_SOURCE[0]}")/../../agents/codex-reporting.md"
   [ -f "$brief_file" ] || {
     printf 'resolve-agent: cannot deliver the implementer brief: %s is missing\n' "$brief_file" >&2
     return 1
   }
   local body
-  body=$(awk 'NR==1 && $0=="---"{f=1;next} f && $0=="---"{f=0;next} !f' "$brief_file") || {
+  # Substitute only the reporting section; Claude still loads the original brief.
+  body=$(awk '
+    FILENAME==ARGV[1] {report=report $0 "\n"; next}
+    FNR==1 && $0=="---" {f=1; next}
+    f && $0=="---" {f=0; next}
+    f {next}
+    /^## Reporting done$/ {printf "%s\n", report; skip=1; next}
+    skip && /^## / {skip=0}
+    !skip {print}
+  ' "$reporting_file" "$brief_file") || {
     printf 'resolve-agent: could not read the implementer brief at %s\n' "$brief_file" >&2
     return 1
   }
