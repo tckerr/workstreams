@@ -162,8 +162,15 @@ Streams reach you by cross-session message, not through herdr: herdr names only
 the agents it started, and you are a plain pane. `bootstrap.sh` hands each stream
 your `$CLAUDE_CODE_MESSAGING_SOCKET` so it can find you.
 
-Streams run under a different Claude profile from yours, so `ListAgents` does not
-show them and you cannot address one by name. Discovery is per-profile; the
+Codex streams send through a Python helper configured by bootstrap. Their
+messages identify the branch and dev pane and carry a status: `started`, `ready`,
+`blocked`, or `merged`. A `ready` report means the PR is open for review, not
+merged; keep the stream and workspace open. Only `merged` is a teardown report.
+Reply to Codex with `herdr agent prompt <agent> <message>` using the agent name in
+the spawn summary. Codex has no `uds:` inbox or `SendMessage` tool.
+
+Claude streams run under a different Claude profile from yours, so `ListAgents`
+does not show them and you cannot address one by name. Discovery is per-profile; the
 transport is not. Every session's socket lands in `/tmp/cc-socks/<pid>.sock`
 whatever profile it belongs to, and an explicit `uds:` address reaches across:
 

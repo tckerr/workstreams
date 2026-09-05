@@ -146,6 +146,24 @@ if [ -n "$HERDR_WS_PANE_INIT" ]; then
     || die "could not run the project's pane init on $dev"
 fi
 
+# Deliver project instructions before Codex starts and reads AGENTS.md. Freeze
+# reporting configuration here too, while the parent's socket/token are known.
+brief_prefix=""
+brief_via="--agent flag"
+report_command=""
+if [ "$WS_BRIEF" = agents-md ]; then
+  deliver_codex_brief "$here/../../agents/implementer.md" "$tree" \
+    || die "could not deliver the implementer brief to the Codex stream in $tree"
+  brief_via=$WS_BRIEF_VIA
+  brief_prefix=$WS_BRIEF_PREFIX
+  if [ -n "${CLAUDE_CODE_MESSAGING_SOCKET:-}" ]; then
+    report_command=$(python3 "$here/../../scripts/report_to_orchestrator.py" prepare \
+      --worktree "$tree" --branch "$branch" --pane "$dev" \
+      --permission-mode "$WS_PERMISSION_MODE") \
+      || die "could not prepare the Codex reporting transport in $tree"
+  fi
+fi
+
 herdr agent start "$agent" --kind "$kind" --pane "$dev" \
   -- "${WS_AGENT_ARGS[@]}" >/dev/null \
   || die "the agent did not start in $dev; check the pane"
@@ -180,19 +198,6 @@ if [ -n "$HERDR_WS_PANE_INIT_CHECK" ]; then
     || die "agent in $dev did not inherit the project's pane init (nothing matching '$HERDR_WS_PANE_INIT_CHECK' in its environment); the init did not land before it started. Kill the agent and re-run."
 fi
 
-# A Claude stream carries the implementer brief through --agent. A Codex stream
-# has no such flag but reads an AGENTS.md project doc on its own, so the brief is
-# delivered there (see deliver_codex_brief in resolve-agent.sh), with a prompt
-# fallback when the project already ships its own AGENTS.md.
-brief_prefix=""
-brief_via="--agent flag"
-if [ "$WS_BRIEF" = agents-md ]; then
-  deliver_codex_brief "$here/../../agents/implementer.md" "$tree" \
-    || die "could not deliver the implementer brief to the Codex stream in $tree"
-  brief_via=$WS_BRIEF_VIA
-  brief_prefix=$WS_BRIEF_PREFIX
-fi
-
 priming="Your worktree is $tree."
 [ -n "$second" ] && priming="$priming
 Your artifact pane is $second."
@@ -208,7 +213,23 @@ it for them; do your own work in the dev pane."
 
 # herdr cannot address the orchestrator: it names only the agents it started,
 # and the orchestrator is a plain pane. The cross-session socket reaches it.
-if [ -n "${CLAUDE_CODE_MESSAGING_SOCKET:-}" ]; then
+if [ "$kind" = codex ]; then
+  if [ -n "$report_command" ]; then
+    priming="$priming
+Report to the orchestrator by running this shell command (the destination is
+already configured):
+  $report_command send started --message 'Acknowledged; getting ready.'
+Send that acknowledgement before working. For later reports use the same command
+with ready (PR open, not merged), blocked, or merged (merge landed and tree clean)
+instead of started, and put the branch, PR URL, and summary in --message.
+Use --message-file for multiline text. Follow your brief's reporting section."
+  else
+    priming="$priming
+The orchestrator reporting transport is unavailable: the spawning session did
+not provide CLAUDE_CODE_MESSAGING_SOCKET. Show reports in your dev pane, including
+the PR URL and summary; do not attempt a raw socket write."
+  fi
+elif [ -n "${CLAUDE_CODE_MESSAGING_SOCKET:-}" ]; then
   priming="$priming
 The orchestrator is uds:$CLAUDE_CODE_MESSAGING_SOCKET. Report there when you are
 done, as your brief describes."
@@ -234,6 +255,10 @@ herdr agent prompt "$agent" "$opening" >/dev/null \
 
 sock=""
 [ -n "$pid" ] && [ -S "/tmp/cc-socks/$pid.sock" ] && sock="uds:/tmp/cc-socks/$pid.sock"
+address=${sock:-(not resolved; find it with ListAgents)}
+if [ "$kind" = codex ]; then
+  address="herdr agent prompt $agent <message>"
+fi
 
 cat <<SUMMARY
 workspace  $workspace
@@ -249,6 +274,6 @@ kind       $kind
 brief      $brief_via
 model      ${model:-(the kind default)}
 profile    ${config_dir:-(the orchestrator)}
-address    ${sock:-(not resolved; find it with ListAgents)}
+address    $address
 agent is   $status
 SUMMARY
