@@ -107,17 +107,19 @@ The optional `scripts/telegram_bridge.py` service connects a paired Telegram
 account to you so the user can drive orchestration from a phone. Telegram is a
 capability of the orchestrator only: streams are never wired to the phone, and you
 relay to and from them through Herdr as usual. Setup — the bot token and pairing —
-is a one-time local step the user runs; see the plugin README.
+is a one-time local step the user runs; see `TELEGRAM.md`.
 
 When the user asks you to connect Telegram, and the bot is already paired, register
-your own pane as the default target and start the bridge in a background Herdr pane
-created with `--no-focus`:
+your own pane (`$HERDR_PANE_ID`) as the default target, then run the bridge in a new
+tab in your own Herdr workspace (`$HERDR_WORKSPACE_ID`) so it stays clear of your
+working pane. `herdr tab create` returns the new tab's pane id:
 
-    python3 scripts/telegram_bridge.py register orchestrator --pane <your pane> --default
-    python3 scripts/telegram_bridge.py run
+    python3 scripts/telegram_bridge.py register orchestrator --pane "$HERDR_PANE_ID" --default
+    herdr tab create --workspace "$HERDR_WORKSPACE_ID" --label Telegram --no-focus
+    herdr pane run <new tab pane> "python3 scripts/telegram_bridge.py run"
 
 The bridge sends its setup brief once when your registered session becomes idle;
-that brief points you to the README section "Bridge instructions for the
+that brief points you to the `TELEGRAM.md` section "Bridge instructions for the
 orchestrator". Later messages contain only a request ID and the user's text. Treat
 each user message as a request from the paired user, following the same project and
 spawning rules as a local request. Use the brief's helper to send a concise answer

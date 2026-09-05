@@ -172,8 +172,6 @@ if [ -n "$HERDR_WS_PANE_INIT_CHECK" ]; then
     || die "agent in $dev did not inherit the project's pane init (nothing matching '$HERDR_WS_PANE_INIT_CHECK' in its environment); the init did not land before it started. Kill the agent and re-run."
 fi
 
-# Telegram is an orchestrator-only capability: streams are not wired to the phone.
-# The orchestrator relays to and from the user through Herdr as usual.
 priming="Your worktree is $tree."
 [ -n "$second" ] && priming="$priming
 Your artifact pane is $second."
