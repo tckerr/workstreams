@@ -19,6 +19,7 @@
 #                        agent-flag  carried by --agent (Claude)
 #                        agents-md   written as an AGENTS.md the agent loads, with
 #                                    a prompt fallback (Codex)
+#   WS_PERMISSION_MODE wire attestation of this launch's permission class
 
 resolve_agent() {
   local default_kind=${HERDR_WS_DEFAULT_KIND:-claude}
@@ -49,6 +50,7 @@ resolve_agent() {
       WS_AGENT_ARGV0=claude
       WS_PROFILE_ENV=CLAUDE_CONFIG_DIR
       WS_BRIEF=agent-flag
+      WS_PERMISSION_MODE=bypass
       ;;
     codex)
       # Codex has no plugin-agent flag. It does read an AGENTS.md project doc on
@@ -63,6 +65,8 @@ resolve_agent() {
       WS_AGENT_ARGV0=codex
       WS_PROFILE_ENV=CODEX_HOME
       WS_BRIEF=agents-md
+      # Must track the bypass flag above, never the orchestrator's inbound policy.
+      WS_PERMISSION_MODE=bypass
       ;;
   esac
   [ -n "$model" ] && args+=(--model "$model")
