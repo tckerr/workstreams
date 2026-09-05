@@ -1,9 +1,10 @@
 import importlib.util
 import json
 from pathlib import Path
+import shlex
 import tempfile
 import unittest
-from unittest.mock import Mock
+from unittest.mock import Mock, call, patch
 
 
 spec = importlib.util.spec_from_file_location('bridge', Path(__file__).parents[1] / 'scripts/telegram_bridge.py')
@@ -162,8 +163,128 @@ class BridgeTests(unittest.TestCase):
         self.app.tick()
         self.assertEqual([], self.herdr.prompts)
         self.assertEqual(['queued'], self.statuses())
+        replacement = bridge.register(self.db, self.herdr, 'orchestrator', 'w1:p1')
+        self.assertNotEqual(self.target, replacement)
+        self.assertEqual(replacement, bridge.get_meta(self.db, 'default_target'))
+        self.assertEqual(['cancelled'], self.statuses())
+        self.app.tick()
+        self.assertEqual(1, len(self.herdr.prompts))
+        self.assertIn('Telegram bridge setup', self.herdr.prompts[0][1])
+        self.app.ingest([update(2, 'new request')])
+        self.app.tick()
+        self.assertEqual('Telegram request 2:\n\nnew request', self.herdr.prompts[1][1])
+
+    def test_registration_replaces_pane_and_clears_old_brief_and_routes(self):
+        with self.db:
+            self.db.execute('INSERT INTO routes VALUES (?, ?)', (900, self.target))
+        replacement = bridge.register(self.db, self.herdr, 'orchestrator', 'w2:p1', True)
+        targets = self.db.execute('SELECT * FROM targets').fetchall()
+        self.assertEqual(1, len(targets))
+        self.assertEqual(('orchestrator', 'w2:p1', replacement),
+                         (targets[0]['name'], targets[0]['pane'], targets[0]['id']))
+        self.assertIsNone(bridge.get_meta(self.db, 'brief:' + self.target))
+        self.assertIsNone(bridge.get_meta(self.db, 'brief:' + replacement))
+        self.assertEqual([], self.db.execute('SELECT * FROM routes').fetchall())
+
+    def test_repeated_registration_preserves_queue_and_brief(self):
+        self.app.ingest([update(1, 'queued request')])
+        target = bridge.register(self.db, self.herdr, 'orchestrator', 'w1:p1', True)
+        self.assertEqual(self.target, target)
+        self.assertEqual('sent', bridge.get_meta(self.db, 'brief:' + target))
+        self.assertEqual(['queued'], self.statuses())
+
+    def test_replacing_nondefault_registration_preserves_default(self):
+        bridge.register(self.db, self.herdr, 'other', 'w2:p1')
+        bridge.register(self.db, self.herdr, 'other', 'w3:p1')
+        self.assertEqual(self.target, bridge.get_meta(self.db, 'default_target'))
+
+    def test_registration_can_rename_an_existing_process(self):
+        target = bridge.register(self.db, self.herdr, 'renamed', 'w1:p1')
+        self.assertEqual(self.target, target)
+        self.assertEqual('renamed', self.db.execute('SELECT name FROM targets').fetchone()[0])
+
+    def test_failed_registration_keeps_previous_target(self):
+        self.herdr.snapshot = Mock(side_effect=bridge.BridgeError('No foreground agent process'))
         with self.assertRaises(bridge.BridgeError):
-            bridge.register(self.db, self.herdr, 'orchestrator', 'w1:p1')
+            bridge.register(self.db, self.herdr, 'orchestrator', 'w2:p1', True)
+        self.assertEqual(self.target, bridge.get_meta(self.db, 'default_target'))
+        self.assertEqual('w1:p1', self.db.execute('SELECT pane FROM targets').fetchone()[0])
+
+    def test_connect_cli_registers_current_pane_and_launches_absolute_command(self):
+        root = self.root / "state with spaces ' $ and `"
+        root.mkdir()
+        bridge.save_config(root, self.config)
+        script = self.root / "plugin with spaces ' $ and `" / 'scripts/telegram_bridge.py'
+        herdr = Mock()
+        herdr.snapshot.return_value = ('idle', 'new-process')
+        herdr.call.side_effect = [{'root_pane': {'pane_id': 'w3:p2'}}, {}]
+        with patch.dict(bridge.os.environ, {'HERDR_PANE_ID': 'w3:p1', 'HERDR_WORKSPACE_ID': 'w3'}), \
+                patch.object(bridge, 'Herdr', return_value=herdr), \
+                patch.object(bridge, 'SCRIPT', script):
+            bridge.main(['--state-dir', str(root), 'connect'])
+        herdr.snapshot.assert_called_once_with('w3:p1')
+        self.assertEqual(call('tab', 'create', '--workspace', 'w3', '--label', 'Telegram', '--no-focus'),
+                         herdr.call.call_args_list[0])
+        launch = herdr.call.call_args_list[1].args
+        self.assertEqual(('pane', 'run', 'w3:p2'), launch[:3])
+        self.assertEqual([bridge.sys.executable, str(script), '--state-dir', str(root.resolve()), 'run'],
+                         shlex.split(launch[3]))
+        db = bridge.database(root)
+        self.addCleanup(db.close)
+        target = db.execute('SELECT * FROM targets').fetchone()
+        self.assertEqual(('orchestrator', 'w3:p1'), (target['name'], target['pane']))
+        self.assertEqual(target['id'], bridge.get_meta(db, 'default_target'))
+
+    def test_connect_replaces_previous_orchestrator(self):
+        bridge.save_config(self.root, self.config)
+        self.herdr.identity = 'replacement-process'
+        self.herdr.call = Mock(side_effect=[{'root_pane': {'pane_id': 'w1:p2'}}, {}])
+        with patch.dict(bridge.os.environ, {'HERDR_PANE_ID': 'w1:p1', 'HERDR_WORKSPACE_ID': 'w1'}):
+            bridge.connect(self.root, self.db, self.herdr)
+        self.assertNotEqual(self.target, bridge.get_meta(self.db, 'default_target'))
+        self.assertEqual(1, self.db.execute('SELECT count(*) FROM targets').fetchone()[0])
+
+    def test_connect_requires_pane_and_workspace_before_registering(self):
+        for env in ({}, {'HERDR_PANE_ID': 'w1:p1'}, {'HERDR_WORKSPACE_ID': 'w1'}):
+            with self.subTest(env=env), patch.dict(bridge.os.environ, env, clear=True):
+                herdr = Mock()
+                with self.assertRaisesRegex(bridge.BridgeError, 'HERDR_PANE_ID and HERDR_WORKSPACE_ID'):
+                    bridge.connect(self.root, self.db, herdr)
+                herdr.snapshot.assert_not_called()
+                herdr.call.assert_not_called()
+
+    def test_connect_requires_setup_and_pairing_before_registering(self):
+        herdr = Mock()
+        with patch.dict(bridge.os.environ, {'HERDR_PANE_ID': 'w1:p1', 'HERDR_WORKSPACE_ID': 'w1'}):
+            with self.assertRaisesRegex(bridge.BridgeError, 'Run setup first'):
+                bridge.connect(self.root, self.db, herdr)
+            bridge.save_config(self.root, {'token': 'test-token', 'pair_code': 'code'})
+            with self.assertRaisesRegex(bridge.BridgeError, 'Pair your Telegram account first'):
+                bridge.connect(self.root, self.db, herdr)
+        herdr.snapshot.assert_not_called()
+        herdr.call.assert_not_called()
+
+    def test_connect_does_not_launch_without_a_valid_tab_pane(self):
+        bridge.save_config(self.root, self.config)
+        for result in ({}, None, {'root_pane': {}}, {'root_pane': {'pane_id': ''}},
+                       {'root_pane': {'pane_id': 123}}):
+            with self.subTest(result=result), patch.dict(bridge.os.environ, {
+                    'HERDR_PANE_ID': 'w1:p1', 'HERDR_WORKSPACE_ID': 'w1'}):
+                self.herdr.call = Mock(return_value=result)
+                with self.assertRaisesRegex(bridge.BridgeError, 'no pane id'):
+                    bridge.connect(self.root, self.db, self.herdr)
+                self.assertEqual(1, self.herdr.call.call_count)
+
+    def test_connect_surfaces_tab_and_launch_failures(self):
+        bridge.save_config(self.root, self.config)
+        for responses in ([bridge.BridgeError('tab failed')],
+                          [{'root_pane': {'pane_id': 'w1:p2'}}, bridge.BridgeError('run failed')]):
+            with self.subTest(responses=responses), patch.dict(bridge.os.environ, {
+                    'HERDR_PANE_ID': 'w1:p1', 'HERDR_WORKSPACE_ID': 'w1'}):
+                self.herdr.call = Mock(side_effect=responses)
+                with self.assertRaisesRegex(bridge.BridgeError, 'failed'):
+                    bridge.connect(self.root, self.db, self.herdr)
+                self.assertEqual(len(responses), self.herdr.call.call_count)
 
     def test_agent_helpers_do_not_change_process_identity(self):
         herdr = bridge.Herdr()
