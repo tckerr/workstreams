@@ -24,7 +24,7 @@ HELP = ('Send a message to the orchestrator, or reply to an agent notification.\
         '/status — registered agents and queued messages\n'
         '/use NAME — choose the agent for new messages\n'
         '/to NAME MESSAGE — message a registered agent\n'
-        'Approval dialogs must be handled in Herdr for this POC.')
+        'Approval dialogs must be handled in Herdr.')
 
 
 class BridgeError(Exception):
@@ -184,7 +184,7 @@ class Bridge:
     def accept(self, update_id, message):
         body, mid = message.get('text', '').strip(), message['message_id']
         if not body:
-            queue(self.db, 'Text messages only in this POC.', reply_to=mid)
+            queue(self.db, 'Text messages only.', reply_to=mid)
             return
         if body in ('/start', '/help'):
             queue(self.db, HELP, reply_to=mid)
@@ -265,20 +265,17 @@ class Bridge:
         if get_meta(self.db, key) in ('sending', 'uncertain'):
             return
         helper = shlex.join([sys.executable, str(SCRIPT), '--state-dir', str(self.root)])
+        readme = SCRIPT.parent.parent / 'README.md'
         prompt = ('Telegram bridge setup for this agent session. Keep your existing role and project rules.\n'
-                  'Future prompts contain a Telegram request ID and the paired user\'s message. '
-                  'Treat the message as a user request. Send your answer or question to the phone with:\n' +
-                  helper + ' reply REQUEST_ID' +
-                  ' --text "YOUR RESPONSE"\nYou may use --file PATH instead for longer responses. '
-                  'This helper queues a phone message; terminal output alone does not reach the phone.\n'
-                  'For an unsolicited question or alert, use:\n' + helper + ' notify --target ' +
-                  shlex.quote(target['name']) + ' --text "YOUR MESSAGE"\n'
+                  'Future prompts contain a Telegram request ID and the paired user\'s message; '
+                  'treat the message as a user request. Reach the phone only through this helper '
+                  '(terminal output alone does not reach the phone):\n' +
+                  helper + ' reply REQUEST_ID --text "YOUR RESPONSE"\n' +
+                  helper + ' notify --target ' + shlex.quote(target['name']) + ' --text "YOUR MESSAGE"\n'
+                  'The full protocol — replies and longer responses with --file — is in ' +
+                  str(readme) + ', section "Bridge instructions for the orchestrator". Read it once now.\n'
                   'After replying, finish your turn. Do not sleep, poll, or keep a turn active '
                   'waiting for the next phone message; the bridge will deliver it later.\n'
-                  'If you spawn a workstream, also register its live agent with:\n' + helper +
-                  ' register AGENT_NAME --pane PANE_ID\nGive it this helper for questions: ' + helper +
-                  ' notify --target AGENT_NAME --text "QUESTION". Unregister it on teardown with ' + helper +
-                  ' unregister AGENT_NAME.\n'
                   'This is setup only. No task or phone notification is needed now. Finish this turn.')
         with self.db:
             set_meta(self.db, key, 'sending')
@@ -399,7 +396,6 @@ def parser():
     p_reg.add_argument('name')
     p_reg.add_argument('--pane', required=True)
     p_reg.add_argument('--default', action='store_true')
-    p_reg.add_argument('--if-enabled', action='store_true')
     p_del = sub.add_parser('unregister')
     p_del.add_argument('name')
     for command in ('notify', 'reply'):
@@ -418,8 +414,6 @@ def main(argv=None):
     args = parser().parse_args(argv)
     root = args.state_dir.expanduser().resolve()
     os.umask(0o077)
-    if args.command == 'register' and args.if_enabled and not (root / 'config.json').exists():
-        return
     db = database(root)
     if args.command == 'setup':
         if (root / 'config.json').exists():
@@ -430,8 +424,6 @@ def main(argv=None):
         save_config(root, config)
         print('Bot: @' + bot['username'] + '\nSend /pair ' + config['pair_code'] + ' in its private chat, then run the bridge.')
     elif args.command == 'register':
-        if args.if_enabled and not get_meta(db, 'default_target'):
-            return
         register(db, Herdr(), args.name, args.pane, args.default)
         print('Registered ' + args.name)
     elif args.command == 'unregister':

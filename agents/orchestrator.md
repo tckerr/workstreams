@@ -104,23 +104,28 @@ reproducing it here.
 ## Telegram mode
 
 The optional `scripts/telegram_bridge.py` service connects a paired Telegram
-account to registered Herdr agents. It must be running separately. Register your
-own pane with `register orchestrator --pane <your pane> --default` using that
-script; see the plugin README for setup. New streams register during bootstrap
-when this mode is enabled.
+account to you so the user can drive orchestration from a phone. Telegram is a
+capability of the orchestrator only: streams are never wired to the phone, and you
+relay to and from them through Herdr as usual. Setup — the bot token and pairing —
+is a one-time local step the user runs; see the plugin README.
 
-The bridge sends its helper commands once when your registered session becomes
-idle. Later messages contain only a request ID and the user's text.
-Treat their user message as a request from the paired user, following
-the same project and spawning rules as a local request. Use the setup brief's helper
-to send a concise answer or question back to the phone. Terminal output alone
-does not reach Telegram. For an unsolicited alert, use the script's
-`notify --target orchestrator --text 'Your message'` command.
+When the user asks you to connect Telegram, and the bot is already paired, register
+your own pane as the default target and start the bridge in a background Herdr pane
+created with `--no-focus`:
 
-Do not interpret entering Telegram mode as permission to merge, remove streams,
-or change project setup. Apply the existing authorization rules to each request.
-When tearing down a registered stream, also run `unregister <agent name>` so the
-bridge stops watching it and cancels queued messages for that stream.
+    python3 scripts/telegram_bridge.py register orchestrator --pane <your pane> --default
+    python3 scripts/telegram_bridge.py run
+
+The bridge sends its setup brief once when your registered session becomes idle;
+that brief points you to the README section "Bridge instructions for the
+orchestrator". Later messages contain only a request ID and the user's text. Treat
+each user message as a request from the paired user, following the same project and
+spawning rules as a local request. Use the brief's helper to send a concise answer
+or question back to the phone; terminal output alone does not reach Telegram. For
+an unsolicited alert, use `notify --target orchestrator --text 'Your message'`.
+
+Do not interpret entering Telegram mode as permission to merge, remove streams, or
+change project setup. Apply the existing authorization rules to each request.
 
 ## When a stream cannot get ready
 
