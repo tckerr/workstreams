@@ -247,7 +247,7 @@ shell      ${shell:-(none)}${shell:+ (Shell tab)}
 survivor   $HERDR_WS_SURVIVOR_GLOB
 kind       $kind
 brief      $brief_via
-model      ${model:-(the agent's default)}
+model      ${model:-(the kind default)}
 profile    ${config_dir:-(the orchestrator)}
 address    ${sock:-(not resolved; find it with ListAgents)}
 agent is   $status
