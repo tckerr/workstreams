@@ -372,17 +372,51 @@ class Bridge:
                 time.sleep(3)
 
 
+def unregister(db, name):
+    target = db.execute('SELECT id FROM targets WHERE name=?', (name,)).fetchone()
+    if target:
+        db.execute("UPDATE inbox SET status='cancelled' WHERE target=? AND status='queued'", (target['id'],))
+        db.execute('DELETE FROM targets WHERE id=?', (target['id'],))
+        db.execute('DELETE FROM meta WHERE key=?', ('brief:' + target['id'],))
+        db.execute('DELETE FROM routes WHERE target=?', (target['id'],))
+        if get_meta(db, 'default_target') == target['id']:
+            db.execute("DELETE FROM meta WHERE key='default_target'")
+
+
 def register(db, herdr, name, pane, default=False):
     state, identity = herdr.snapshot(pane)
     target_id = hashlib.sha256((pane + identity).encode()).hexdigest()[:20]
     old = db.execute('SELECT id FROM targets WHERE name=?', (name,)).fetchone()
-    if old and old['id'] != target_id:
-        raise BridgeError('That name belongs to another agent process. Unregister it first.')
     with db:
-        db.execute('INSERT OR IGNORE INTO targets VALUES (?, ?, ?, ?, ?)', (target_id, name, pane, identity, state))
+        if old and old['id'] != target_id:
+            default = default or get_meta(db, 'default_target') == old['id']
+            unregister(db, name)
+        db.execute('''INSERT INTO targets VALUES (?, ?, ?, ?, ?)
+                      ON CONFLICT(id) DO UPDATE SET name=excluded.name''',
+                   (target_id, name, pane, identity, state))
         if default:
             set_meta(db, 'default_target', target_id)
     return target_id
+
+
+def connect(root, db, herdr):
+    pane = os.environ.get('HERDR_PANE_ID')
+    workspace = os.environ.get('HERDR_WORKSPACE_ID')
+    if not pane or not workspace:
+        raise BridgeError('Connect requires HERDR_PANE_ID and HERDR_WORKSPACE_ID; run inside Herdr.')
+    if not load_config(root).get('user_id'):
+        raise BridgeError('Pair your Telegram account first.')
+    register(db, herdr, 'orchestrator', pane, default=True)
+    result = herdr.call('tab', 'create', '--workspace', workspace, '--label', 'Telegram', '--no-focus')
+    try:
+        bridge_pane = result['root_pane']['pane_id']
+        if not isinstance(bridge_pane, str) or not bridge_pane:
+            raise ValueError
+    except (KeyError, TypeError, ValueError):
+        raise BridgeError('Unexpected Herdr tab response; no pane id.') from None
+    command = shlex.join([sys.executable, str(SCRIPT), '--state-dir', str(root), 'run'])
+    herdr.call('pane', 'run', bridge_pane, command)
+    print('Registered orchestrator; dispatched Telegram bridge to ' + bridge_pane + '.')
 
 
 def parser():
@@ -390,6 +424,7 @@ def parser():
     p.add_argument('--state-dir', type=Path, default=Path(os.environ.get('WORKSTREAMS_TELEGRAM_STATE', DEFAULT_STATE)))
     sub = p.add_subparsers(dest='command', required=True)
     sub.add_parser('setup', help='Enter bot token locally and generate a one-time pairing code')
+    sub.add_parser('connect', help='Register this orchestrator and launch the bridge in a Telegram tab')
     sub.add_parser('run', help='Run the bridge in the foreground inside Herdr')
     sub.add_parser('status', help='Show local routing and delivery state (no credentials)')
     p_reg = sub.add_parser('register', help='Register an agent and pin its foreground process')
@@ -423,19 +458,14 @@ def main(argv=None):
         config = {'token': token, 'pair_code': secrets.token_hex(4)}
         save_config(root, config)
         print('Bot: @' + bot['username'] + '\nSend /pair ' + config['pair_code'] + ' in its private chat, then run the bridge.')
+    elif args.command == 'connect':
+        connect(root, db, Herdr())
     elif args.command == 'register':
         register(db, Herdr(), args.name, args.pane, args.default)
         print('Registered ' + args.name)
     elif args.command == 'unregister':
-        target = db.execute('SELECT id FROM targets WHERE name=?', (args.name,)).fetchone()
-        if target:
-            with db:
-                db.execute("UPDATE inbox SET status='cancelled' WHERE target=? AND status='queued'", (target['id'],))
-                db.execute('DELETE FROM targets WHERE id=?', (target['id'],))
-                db.execute('DELETE FROM meta WHERE key=?', ('brief:' + target['id'],))
-                db.execute('DELETE FROM routes WHERE target=?', (target['id'],))
-                if get_meta(db, 'default_target') == target['id']:
-                    db.execute("DELETE FROM meta WHERE key='default_target'")
+        with db:
+            unregister(db, args.name)
         print('Unregistered ' + args.name)
     elif args.command == 'status':
         config = load_config(root)
