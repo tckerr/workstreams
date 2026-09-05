@@ -9,6 +9,7 @@ resulting globals for the test to assert against.
 
 import os
 import subprocess
+import tempfile
 import unittest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -24,7 +25,7 @@ printf 'kind=%s\n' "$WS_KIND"
 printf 'model=%s\n' "$WS_MODEL"
 printf 'argv0=%s\n' "$WS_AGENT_ARGV0"
 printf 'profile_env=%s\n' "$WS_PROFILE_ENV"
-printf 'brief=%s\n' "$WS_BRIEF_IN_PROMPT"
+printf 'brief=%s\n' "$WS_BRIEF"
 printf 'args=%s\n' "${WS_AGENT_ARGS[*]}"
 """
 
@@ -61,7 +62,7 @@ class ResolveAgentTest(unittest.TestCase):
         self.assertEqual(r["model"], "claude-opus-4-8")
         self.assertEqual(r["argv0"], "claude")
         self.assertEqual(r["profile_env"], "CLAUDE_CONFIG_DIR")
-        self.assertEqual(r["brief"], "0")
+        self.assertEqual(r["brief"], "agent-flag")
         self.assertEqual(
             r["args"],
             "--dangerously-skip-permissions --effort high "
@@ -78,10 +79,11 @@ class ResolveAgentTest(unittest.TestCase):
         self.assertEqual(r["model"], "")
         self.assertEqual(r["argv0"], "codex")
         self.assertEqual(r["profile_env"], "CODEX_HOME")
-        self.assertEqual(r["brief"], "1")
+        self.assertEqual(r["brief"], "agents-md")
         self.assertEqual(
             r["args"],
-            "--dangerously-bypass-approvals-and-sandbox -c model_reasoning_effort=high",
+            "--dangerously-bypass-approvals-and-sandbox "
+            "-c model_reasoning_effort=high -c project_doc_max_bytes=1048576",
         )
         self.assertNotIn("--agent", r["args"])
         self.assertNotIn("--effort", r["args"])
@@ -113,6 +115,79 @@ class ResolveAgentTest(unittest.TestCase):
         proc = resolve(HERDR_WS_KIND="gemini")
         self.assertNotEqual(proc.returncode, 0)
         self.assertIn("unsupported agent kind", proc.stderr)
+
+
+# Prints the brief-delivery outcome after running deliver_codex_brief against a
+# real (throwaway) git repo, so the AGENTS.md write, git-exclude, and prompt
+# fallback are exercised as bootstrap.sh runs them.
+DELIVER_HARNESS = r"""
+set -euo pipefail
+source "$RESOLVER"
+deliver_codex_brief "$BRIEF" "$TREE"
+printf 'via=%s\n' "$WS_BRIEF_VIA"
+printf 'prefix_len=%s\n' "${#WS_BRIEF_PREFIX}"
+"""
+
+
+class DeliverCodexBriefTest(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.tree = self.tmp.name
+        subprocess.run(["git", "init", "-q", self.tree], check=True)
+        self.brief = os.path.join(self.tree, "brief.md")
+        with open(self.brief, "w") as f:
+            f.write("---\nname: implementer\n---\n\nDo the work here.\n")
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def deliver(self):
+        env = {
+            "RESOLVER": RESOLVER,
+            "PATH": os.environ.get("PATH", ""),
+            "BRIEF": self.brief,
+            "TREE": self.tree,
+        }
+        return subprocess.run(
+            ["bash", "-c", DELIVER_HARNESS], env=env, capture_output=True, text=True
+        )
+
+    def test_writes_agents_md_stripped_and_git_ignored(self):
+        proc = self.deliver()
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        out = parse(proc)
+        self.assertEqual(out["via"], "AGENTS.md")
+        self.assertEqual(out["prefix_len"], "0")
+
+        agents_md = os.path.join(self.tree, "AGENTS.md")
+        self.assertTrue(os.path.exists(agents_md))
+        body = open(agents_md).read()
+        self.assertIn("Do the work here.", body)
+        self.assertNotIn("name: implementer", body)  # frontmatter stripped
+
+        # Git must not see the generated brief, so no stream commits it.
+        status = subprocess.run(
+            ["git", "-C", self.tree, "status", "--short"],
+            capture_output=True,
+            text=True,
+        )
+        self.assertNotIn("AGENTS.md", status.stdout)
+        ignored = subprocess.run(["git", "-C", self.tree, "check-ignore", "AGENTS.md"])
+        self.assertEqual(ignored.returncode, 0)
+
+    def test_existing_agents_md_falls_back_to_prompt(self):
+        # A project that ships its own AGENTS.md must be left untouched.
+        agents_md = os.path.join(self.tree, "AGENTS.md")
+        with open(agents_md, "w") as f:
+            f.write("PROJECT OWN GUIDANCE\n")
+
+        proc = self.deliver()
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        out = parse(proc)
+        self.assertIn("opening prompt", out["via"])
+        self.assertNotEqual(out["prefix_len"], "0")
+        # The project's own file is unchanged.
+        self.assertEqual(open(agents_md).read(), "PROJECT OWN GUIDANCE\n")
 
 
 if __name__ == "__main__":

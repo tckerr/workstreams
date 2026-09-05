@@ -180,20 +180,17 @@ if [ -n "$HERDR_WS_PANE_INIT_CHECK" ]; then
     || die "agent in $dev did not inherit the project's pane init (nothing matching '$HERDR_WS_PANE_INIT_CHECK' in its environment); the init did not land before it started. Kill the agent and re-run."
 fi
 
-# A Claude stream carries the implementer brief through --agent; a Codex stream
-# has no such flag, so the brief (minus its YAML frontmatter) rides in front of
-# the opening prompt instead.
+# A Claude stream carries the implementer brief through --agent. A Codex stream
+# has no such flag but reads an AGENTS.md project doc on its own, so the brief is
+# delivered there (see deliver_codex_brief in resolve-agent.sh), with a prompt
+# fallback when the project already ships its own AGENTS.md.
 brief_prefix=""
-if [ "$WS_BRIEF_IN_PROMPT" = 1 ]; then
-  brief_file="$here/../../agents/implementer.md"
-  [ -f "$brief_file" ] || die "cannot deliver the implementer brief: $brief_file is missing"
-  brief_body=$(awk 'NR==1 && $0=="---"{f=1;next} f && $0=="---"{f=0;next} !f' "$brief_file") \
-    || die "could not read the implementer brief at $brief_file"
-  brief_prefix="$brief_body
-
-----------------------------------------------------------------------
-
-"
+brief_via="--agent flag"
+if [ "$WS_BRIEF" = agents-md ]; then
+  deliver_codex_brief "$here/../../agents/implementer.md" "$tree" \
+    || die "could not deliver the implementer brief to the Codex stream in $tree"
+  brief_via=$WS_BRIEF_VIA
+  brief_prefix=$WS_BRIEF_PREFIX
 fi
 
 priming="Your worktree is $tree."
@@ -249,6 +246,7 @@ git        ${gitview:-(none)}${gitview:+ (lazygit, Git tab)}
 shell      ${shell:-(none)}${shell:+ (Shell tab)}
 survivor   $HERDR_WS_SURVIVOR_GLOB
 kind       $kind
+brief      $brief_via
 model      ${model:-(the agent's default)}
 profile    ${config_dir:-(the orchestrator)}
 address    ${sock:-(not resolved; find it with ListAgents)}

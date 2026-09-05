@@ -100,7 +100,7 @@ the orchestrator, the phone commands, and delivery semantics.
 ## Layout
 
 - `agents/orchestrator.md`, `agents/implementer.md` — the two roles.
-- `skills/spawn-workstream/` — the spawn skill, its `bootstrap.sh`, and `resolve-agent.sh` (the testable agent-kind/model decision).
+- `skills/spawn-workstream/` — the spawn skill, its `bootstrap.sh`, and `resolve-agent.sh` (the testable agent-kind/model decision and Codex brief delivery).
 - `.claude-plugin/plugin.json` — the plugin manifest.
 - `scripts/telegram_bridge.py` — the optional local Telegram service and helpers.
 - `TELEGRAM.md` — the Telegram bridge guide.
