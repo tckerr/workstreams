@@ -123,12 +123,15 @@ HERDR_WS_KIND=codex HERDR_WS_DESC="..." \
 ```
 
 A Codex stream carries the same implementer brief and reports back the same way;
-the script handles the launch differences (Codex has no `--agent` flag, so the
-brief rides in the opening prompt, and its autonomy and reasoning-effort flags
-differ from Claude's). The per-repo default model belongs to the default kind, so
-overriding only the kind runs that agent under its own default model unless you
-also pass `HERDR_WS_MODEL`. A Codex stream needs a Codex-shaped `HERDR_WS_MODEL`
-and, for a separate profile, a `CODEX_HOME` directory as its `HERDR_WS_CONFIG_DIR`.
+the script handles the launch differences. Codex has no `--agent` flag, so the
+brief is written as an `AGENTS.md` at the worktree root, which Codex loads on its
+own; it is kept out of git so no stream commits it, and if the project already
+ships its own `AGENTS.md` the brief falls back to the opening prompt instead.
+Codex also spells autonomy and reasoning effort differently from Claude. The
+per-repo default model belongs to the default kind, so overriding only the kind
+runs that agent under its own default model unless you also pass `HERDR_WS_MODEL`.
+A Codex stream needs a Codex-shaped `HERDR_WS_MODEL` and, for a separate profile,
+a `CODEX_HOME` directory as its `HERDR_WS_CONFIG_DIR`.
 
 With no task the agent comes up primed and idle, having read its instructions and
 readied its store, and waits for the user to say what to build. With a task it
