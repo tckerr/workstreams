@@ -158,7 +158,8 @@ if [ "$WS_BRIEF" = agents-md ]; then
   brief_prefix=$WS_BRIEF_PREFIX
   if [ -n "${CLAUDE_CODE_MESSAGING_SOCKET:-}" ]; then
     report_command=$(python3 "$here/../../scripts/report_to_orchestrator.py" prepare \
-      --worktree "$tree" --branch "$branch" --pane "$dev") \
+      --worktree "$tree" --branch "$branch" --pane "$dev" \
+      --permission-mode "$WS_PERMISSION_MODE") \
       || die "could not prepare the Codex reporting transport in $tree"
   fi
 fi
@@ -217,7 +218,7 @@ if [ "$kind" = codex ]; then
     priming="$priming
 Report to the orchestrator by running this shell command (the destination is
 already configured):
-  $report_command send started --message 'Acknowledged; starting the task.'
+  $report_command send started --message 'Acknowledged; getting ready.'
 Send that acknowledgement before working. For later reports use the same command
 with ready (PR open, not merged), blocked, or merged (merge landed and tree clean)
 instead of started, and put the branch, PR URL, and summary in --message.
