@@ -111,6 +111,25 @@ HERDR_WS_MODEL=claude-opus-5 HERDR_WS_DESC="..." \
   "${CLAUDE_PLUGIN_ROOT}/skills/spawn-workstream/bootstrap.sh" <slug> <task>
 ```
 
+## Choosing an agent kind
+
+Streams start as the project's `HERDR_WS_DEFAULT_KIND`, which is `claude` unless
+the repo sets otherwise. Set `HERDR_WS_KIND` only when the user names a different
+agent for this stream. The supported kinds are `claude` and `codex`:
+
+```bash
+HERDR_WS_KIND=codex HERDR_WS_DESC="..." \
+  "${CLAUDE_PLUGIN_ROOT}/skills/spawn-workstream/bootstrap.sh" <slug> <task>
+```
+
+A Codex stream carries the same implementer brief and reports back the same way;
+the script handles the launch differences (Codex has no `--agent` flag, so the
+brief rides in the opening prompt, and its autonomy and reasoning-effort flags
+differ from Claude's). The per-repo default model belongs to the default kind, so
+overriding only the kind runs that agent under its own default model unless you
+also pass `HERDR_WS_MODEL`. A Codex stream needs a Codex-shaped `HERDR_WS_MODEL`
+and, for a separate profile, a `CODEX_HOME` directory as its `HERDR_WS_CONFIG_DIR`.
+
 With no task the agent comes up primed and idle, having read its instructions and
 readied its store, and waits for the user to say what to build. With a task it
 starts immediately.
