@@ -10,15 +10,6 @@ whether there is a live artifact to keep running, and what "done" means all come
 from the repo itself. So the same orchestrator serves very different repos
 without changing.
 
-## Upcoming: phone access through Telegram
-
-An experimental [Telegram bridge is in development on `telegram-bridge-poc`](https://github.com/tckerr/workstreams/tree/telegram-bridge-poc).
-It connects your own bot and paired account to Herdr agents for phone messages,
-replies, and blocked-agent alerts. The Codex message round trip has been tested;
-the full workstream lifecycle and unattended recovery still need validation.
-This is a POC, not part of the stable release. See the branch README for setup
-and current limitations.
-
 ## Install
 
 ```bash
