@@ -19,6 +19,7 @@
 #                        agent-flag  carried by --agent (Claude)
 #                        agents-md   written as an AGENTS.md the agent loads, with
 #                                    a prompt fallback (Codex)
+#   WS_PERMISSION_MODE wire attestation of this launch's permission class
 
 resolve_agent() {
   local default_kind=${HERDR_WS_DEFAULT_KIND:-claude}
@@ -49,6 +50,7 @@ resolve_agent() {
       WS_AGENT_ARGV0=claude
       WS_PROFILE_ENV=CLAUDE_CONFIG_DIR
       WS_BRIEF=agent-flag
+      WS_PERMISSION_MODE=bypass
       ;;
     codex)
       # Codex has no plugin-agent flag. It does read an AGENTS.md project doc on
@@ -63,6 +65,8 @@ resolve_agent() {
       WS_AGENT_ARGV0=codex
       WS_PROFILE_ENV=CODEX_HOME
       WS_BRIEF=agents-md
+      # Must track the bypass flag above, never the orchestrator's inbound policy.
+      WS_PERMISSION_MODE=bypass
       ;;
   esac
   [ -n "$model" ] && args+=(--model "$model")
@@ -84,12 +88,23 @@ resolve_agent() {
 #                         prompt fallback is taken)
 deliver_codex_brief() {
   local brief_file=$1 tree=$2
+  local reporting_file
+  reporting_file="$(dirname "${BASH_SOURCE[0]}")/../../agents/codex-reporting.md"
   [ -f "$brief_file" ] || {
     printf 'resolve-agent: cannot deliver the implementer brief: %s is missing\n' "$brief_file" >&2
     return 1
   }
   local body
-  body=$(awk 'NR==1 && $0=="---"{f=1;next} f && $0=="---"{f=0;next} !f' "$brief_file") || {
+  # Substitute only the reporting section; Claude still loads the original brief.
+  body=$(awk '
+    FILENAME==ARGV[1] {report=report $0 "\n"; next}
+    FNR==1 && $0=="---" {f=1; next}
+    f && $0=="---" {f=0; next}
+    f {next}
+    /^## Reporting done$/ {printf "%s\n", report; skip=1; next}
+    skip && /^## / {skip=0}
+    !skip {print}
+  ' "$reporting_file" "$brief_file") || {
     printf 'resolve-agent: could not read the implementer brief at %s\n' "$brief_file" >&2
     return 1
   }

@@ -71,6 +71,15 @@ and resets to `origin/main`; another does not. The implementer follows whatever
 the repo says, then sends the orchestrator the one message the repo does not own:
 that the merge landed and teardown is safe.
 
+Codex streams use a Python helper to send the orchestrator's framed socket
+messages. Bootstrap supplies the command and adapts the reporting brief; Claude
+streams continue to use `SendMessage`. Codex acknowledges the task with `started`,
+reports an open PR as `ready`, and sends `merged` only after the merge lands and
+the worktree is clean. Reports before a merge keep the stream open for review.
+The helper and its private destination/auth config live in the per-worktree git
+directory, with the last report saved there as a fallback. See the spawn skill
+for details and limitations.
+
 ## Setup faults go back to the orchestrator
 
 A stream that cannot build, or cannot isolate its state, does not patch its way

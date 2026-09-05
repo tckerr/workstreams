@@ -122,7 +122,7 @@ HERDR_WS_KIND=codex HERDR_WS_DESC="..." \
   "${CLAUDE_PLUGIN_ROOT}/skills/spawn-workstream/bootstrap.sh" <slug> <task>
 ```
 
-A Codex stream carries the same implementer brief and reports back the same way;
+A Codex stream carries the implementer brief with a Codex reporting section;
 the script handles the launch differences. Codex has no `--agent` flag, so the
 brief is written as an `AGENTS.md` at the worktree root, which Codex loads on its
 own; it is kept out of git so no stream commits it, and if the project already
@@ -132,6 +132,27 @@ per-repo default model belongs to the default kind, so overriding only the kind
 runs that agent under its own default model unless you also pass `HERDR_WS_MODEL`.
 A Codex stream needs a Codex-shaped `HERDR_WS_MODEL` and, for a separate profile,
 a `CODEX_HOME` directory as its `HERDR_WS_CONFIG_DIR`.
+
+Codex cannot use Claude's `SendMessage`. Before launching it, bootstrap installs
+a small Python report helper in the worktree's private git directory, outside
+the tracked tree. The opening prompt gives the exact command for acknowledging
+the task and sending later reports. The helper snapshots your messaging socket
+and optional auth token, so a different profile cannot redirect its reports.
+It sends the JSON-lines frame and permission-mode envelope Claude's inbox
+expects. No watcher or extra process is needed. Its last report is saved beside
+the helper if the socket goes away; credentials stay in the private config.
+
+The `started`, `ready`, and `blocked` reports keep the stream open. Only `merged`
+claims teardown is safe, and the orchestrator still verifies it. A successful
+send has no delivery receipt: an explicit inbound hold/refuse policy can still
+prevent delivery. The helper attests the sender's actual launch mode; it does
+not change that policy. See `scripts/report_to_orchestrator.py` for the protocol.
+If your session has no `CLAUDE_CODE_MESSAGING_SOCKET`, priming tells the stream
+to show reports in its dev pane instead.
+
+For replies to Codex, use `herdr agent prompt <agent> <message>`, as printed in
+the spawn summary's `address` line. Codex has no Claude inbox for `ListAgents`
+to discover.
 
 With no task the agent comes up primed and idle, having read its instructions and
 readied its store, and waits for the user to say what to build. With a task it
