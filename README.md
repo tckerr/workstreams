@@ -41,13 +41,15 @@ rarely write them by hand.
 | --- | --- |
 | `HERDR_WS_SECOND_PANE_LABEL` | Label for the live-artifact pane. Its presence is what opens a second pane at all; empty means dev pane only. |
 | `HERDR_WS_SURVIVOR_GLOB` | The path fragment the teardown check looks for to catch a process still serving a removed worktree. |
-| `HERDR_WS_DEFAULT_CONFIG_DIR` | The Claude profile streams run under, so they can spend a separate usage allowance. Leave it empty to run them under the orchestrator's own profile. |
-| `HERDR_WS_DEFAULT_MODEL` | The model streams run on. |
+| `HERDR_WS_DEFAULT_CONFIG_DIR` | The profile directory streams run under (`CLAUDE_CONFIG_DIR` for Claude, `CODEX_HOME` for Codex), so they can spend a separate usage allowance. Leave it empty to run them under the orchestrator's own profile. |
+| `HERDR_WS_DEFAULT_KIND` | Which agent implementer streams start as: `claude` (the default) or `codex`. |
+| `HERDR_WS_DEFAULT_MODEL` | The model streams run on. It belongs to the default kind; overriding only the kind for one spawn falls back to that kind's own default model. |
 | `HERDR_WS_PANE_INIT` | Command run in the pane before the agent starts, to select a toolchain the project pins. Empty leaves the pane as the machine leaves it. |
 | `HERDR_WS_PANE_INIT_CHECK` | String that must appear in the started agent's environment for the init to count as landed. Empty skips the check. |
 
-Three keys override the defaults for a single spawn, on the command line:
-`HERDR_WS_DESC` (labels the dev pane), `HERDR_WS_MODEL`, and `HERDR_WS_CONFIG_DIR`.
+Four keys override the defaults for a single spawn, on the command line:
+`HERDR_WS_DESC` (labels the dev pane), `HERDR_WS_KIND`, `HERDR_WS_MODEL`, and
+`HERDR_WS_CONFIG_DIR`.
 
 `.herdr/implementer.md` holds the implementer's instructions for this repo, the
 part a shell file cannot carry: how to build, how to test, how to keep the
@@ -98,8 +100,8 @@ the orchestrator, the phone commands, and delivery semantics.
 ## Layout
 
 - `agents/orchestrator.md`, `agents/implementer.md` — the two roles.
-- `skills/spawn-workstream/` — the spawn skill and its `bootstrap.sh`.
+- `skills/spawn-workstream/` — the spawn skill, its `bootstrap.sh`, and `resolve-agent.sh` (the testable agent-kind/model decision).
 - `.claude-plugin/plugin.json` — the plugin manifest.
 - `scripts/telegram_bridge.py` — the optional local Telegram service and helpers.
 - `TELEGRAM.md` — the Telegram bridge guide.
-- `tests/` — bridge authorization, routing, and delivery tests.
+- `tests/` — bridge authorization, routing, and delivery tests, plus the agent-kind resolver tests.

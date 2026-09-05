@@ -13,7 +13,12 @@ HERDR_WS_SECOND_PANE_LABEL=""
 # fragment that never matches a real process.
 HERDR_WS_SURVIVOR_GLOB=".herdr/no-survivors"
 
-# Model default for streams.
+# Which agent implementer streams start as: claude (the default) or codex.
+# Override for a single spawn with HERDR_WS_KIND.
+HERDR_WS_DEFAULT_KIND="claude"
+
+# Model default for streams. It belongs to the default kind above; overriding
+# only the kind for one spawn falls back to that kind's own default model.
 HERDR_WS_DEFAULT_MODEL="claude-opus-4-8"
 
 # The Claude profile is machine-specific and intentionally NOT committed here.
