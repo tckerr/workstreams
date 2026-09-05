@@ -2,8 +2,8 @@
 #
 # Provisions one workstream and hands it its task.
 #
-# Usage: [HERDR_WS_DESC=<phrase>] [HERDR_WS_MODEL=<model>] [HERDR_WS_CONFIG_DIR=<dir>] \
-#          bootstrap.sh <slug> [task...]
+# Usage: [HERDR_WS_DESC=<phrase>] [HERDR_WS_KIND=<claude|codex>] [HERDR_WS_MODEL=<model>] \
+#          [HERDR_WS_CONFIG_DIR=<dir>] bootstrap.sh <slug> [task...]
 #
 # Per-repo values come from .herdr/workstreams.sh in the target repo. With no
 # task the agent is primed and left idle.
@@ -29,6 +29,7 @@ source "$config" || die "could not source $config"
 
 : "${HERDR_WS_SECOND_PANE_LABEL:=}"
 : "${HERDR_WS_SURVIVOR_GLOB:=target}"
+: "${HERDR_WS_DEFAULT_KIND:=claude}"
 : "${HERDR_WS_DEFAULT_MODEL:=claude-opus-4-8}"
 : "${HERDR_WS_DEFAULT_CONFIG_DIR:=}"
 : "${HERDR_WS_PANE_INIT:=}"
@@ -116,16 +117,23 @@ fi
 shell=$(herdr tab create --workspace "$workspace" --cwd "$tree" --label Shell \
   --no-focus | field '["root_pane"]["pane_id"]') || shell=""
 
-model=${HERDR_WS_MODEL:-$HERDR_WS_DEFAULT_MODEL}
-model_args=(--model "$model")
+# Resolve which agent this stream starts as — kind, model, and launch argv. The
+# decision lives in a sibling helper so it can be tested without herdr or git.
+here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd) || die "could not locate the skill directory"
+# shellcheck disable=SC1091
+source "$here/resolve-agent.sh" || die "could not source $here/resolve-agent.sh"
+resolve_agent || die "could not resolve the agent kind (HERDR_WS_KIND=${HERDR_WS_KIND:-} HERDR_WS_DEFAULT_KIND=$HERDR_WS_DEFAULT_KIND)"
+kind=$WS_KIND
+model=$WS_MODEL
 
 # herdr agent start takes no environment, but the pane is a shell and the agent
-# starts inside it, so the profile has to be exported first. Empty means run
-# under whatever profile the orchestrator is in.
+# starts inside it, so the profile has to be exported first. The env var that
+# names a profile differs by kind (CLAUDE_CONFIG_DIR / CODEX_HOME). Empty means
+# run under whatever profile the orchestrator is in.
 config_dir=${HERDR_WS_CONFIG_DIR:-$HERDR_WS_DEFAULT_CONFIG_DIR}
 if [ -n "$config_dir" ]; then
-  [ -d "$config_dir" ] || die "no Claude profile at $config_dir"
-  herdr pane run "$dev" "export CLAUDE_CONFIG_DIR=$config_dir" >/dev/null \
+  [ -d "$config_dir" ] || die "no $kind profile at $config_dir"
+  herdr pane run "$dev" "export $WS_PROFILE_ENV=$config_dir" >/dev/null \
     || die "could not set the profile on $dev"
 fi
 
@@ -138,20 +146,20 @@ if [ -n "$HERDR_WS_PANE_INIT" ]; then
     || die "could not run the project's pane init on $dev"
 fi
 
-herdr agent start "$agent" --kind claude --pane "$dev" \
-  -- --dangerously-skip-permissions --effort high --agent workstreams:implementer \
-  "${model_args[@]+"${model_args[@]}"}" >/dev/null \
+herdr agent start "$agent" --kind "$kind" --pane "$dev" \
+  -- "${WS_AGENT_ARGS[@]}" >/dev/null \
   || die "the agent did not start in $dev; check the pane"
 
 agent_pid() {
   herdr pane process-info --pane "$1" 2>/dev/null \
-    | python3 -c 'import json,sys
+    | WS_AGENT_ARGV0="$WS_AGENT_ARGV0" python3 -c 'import json,os,sys
+want = os.environ["WS_AGENT_ARGV0"]
 try:
     ps = json.load(sys.stdin)["result"]["process_info"]["foreground_processes"]
 except Exception:
     raise SystemExit
 for p in ps:
-    if p.get("argv0") == "claude":
+    if p.get("argv0") == want:
         print(p["pid"]); break' 2>/dev/null || true
 }
 
@@ -161,7 +169,7 @@ pid=$(agent_pid "$dev")
 # herdr pane run returns before the export is guaranteed to have landed, so a
 # lost race would start the stream under the wrong profile and say nothing.
 if [ -n "$config_dir" ]; then
-  ps eww -p "$pid" 2>/dev/null | tr ' ' '\n' | grep -qxF "CLAUDE_CONFIG_DIR=$config_dir" \
+  ps eww -p "$pid" 2>/dev/null | tr ' ' '\n' | grep -qxF "$WS_PROFILE_ENV=$config_dir" \
     || die "agent in $dev is not under $config_dir; the profile export did not land before it started. Kill the agent and re-run."
 fi
 
@@ -170,6 +178,19 @@ fi
 if [ -n "$HERDR_WS_PANE_INIT_CHECK" ]; then
   ps eww -p "$pid" 2>/dev/null | grep -qF "$HERDR_WS_PANE_INIT_CHECK" \
     || die "agent in $dev did not inherit the project's pane init (nothing matching '$HERDR_WS_PANE_INIT_CHECK' in its environment); the init did not land before it started. Kill the agent and re-run."
+fi
+
+# A Claude stream carries the implementer brief through --agent. A Codex stream
+# has no such flag but reads an AGENTS.md project doc on its own, so the brief is
+# delivered there (see deliver_codex_brief in resolve-agent.sh), with a prompt
+# fallback when the project already ships its own AGENTS.md.
+brief_prefix=""
+brief_via="--agent flag"
+if [ "$WS_BRIEF" = agents-md ]; then
+  deliver_codex_brief "$here/../../agents/implementer.md" "$tree" \
+    || die "could not deliver the implementer brief to the Codex stream in $tree"
+  brief_via=$WS_BRIEF_VIA
+  brief_prefix=$WS_BRIEF_PREFIX
 fi
 
 priming="Your worktree is $tree."
@@ -206,6 +227,8 @@ report, and wait."
   status="idle, waiting for your instructions"
 fi
 
+opening="$brief_prefix$opening"
+
 herdr agent prompt "$agent" "$opening" >/dev/null \
   || die "the agent started but did not accept the prompt; prompt $agent by hand"
 
@@ -222,7 +245,9 @@ files      ${files:-(none)}${files:+ (yazi, Files tab)}
 git        ${gitview:-(none)}${gitview:+ (lazygit, Git tab)}
 shell      ${shell:-(none)}${shell:+ (Shell tab)}
 survivor   $HERDR_WS_SURVIVOR_GLOB
-model      $model
+kind       $kind
+brief      $brief_via
+model      ${model:-(the agent's default)}
 profile    ${config_dir:-(the orchestrator)}
 address    ${sock:-(not resolved; find it with ListAgents)}
 agent is   $status
