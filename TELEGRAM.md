@@ -34,16 +34,18 @@ paired account per bot token.
 
 ## Connecting the orchestrator
 
-Once the bot is paired, ask the orchestrator to connect Telegram. It registers its
-own pane as the default target, opens a new `Telegram` tab in its Herdr workspace,
-and runs the bridge there so it stays clear of its working pane (you can also run
-these commands yourself):
+Once the bot is paired, run the plugin command in the orchestrator's session:
 
-```bash
-python3 scripts/telegram_bridge.py register orchestrator --pane "$HERDR_PANE_ID" --default
-herdr tab create --workspace "$HERDR_WORKSPACE_ID" --label Telegram --no-focus
-herdr pane run <new tab pane> "python3 scripts/telegram_bridge.py run"
+```text
+/telegram-connect
 ```
+
+The command resolves the bridge through `${CLAUDE_PLUGIN_ROOT}`, so it works from
+the target repo. It registers `$HERDR_PANE_ID` as the default orchestrator, opens a
+`Telegram` tab in `$HERDR_WORKSPACE_ID` without changing focus, and launches the
+bridge there. Reconnecting replaces an older orchestrator registration; queued
+requests for the replaced session are cancelled. Registering the same session
+again preserves its queue and setup brief.
 
 The bridge keeps running in that tab; stop it with Ctrl-C there. No launch agent is
 installed, so the Mac must stay awake and connected. Restarting `run` preserves
@@ -64,7 +66,7 @@ your original message, and a failed reaction does not block the answer.
 
 The setup brief points the orchestrator here rather than repeating the protocol in
 the prompt. The orchestrator reaches the phone only through the bridge helper — the
-same `telegram_bridge.py` invocation used above, including any `--state-dir` —
+absolute `telegram_bridge.py` invocation in its setup brief, including `--state-dir` —
 because its own terminal output never reaches Telegram. After setup, each delivered
 prompt is `Telegram request <id>:` followed by your message; the orchestrator
 treats it as a user request and answers, or asks a clarifying question, with
