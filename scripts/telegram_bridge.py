@@ -265,7 +265,7 @@ class Bridge:
         if get_meta(self.db, key) in ('sending', 'uncertain'):
             return
         helper = shlex.join([sys.executable, str(SCRIPT), '--state-dir', str(self.root)])
-        readme = SCRIPT.parent.parent / 'README.md'
+        guide = SCRIPT.parent.parent / 'TELEGRAM.md'
         prompt = ('Telegram bridge setup for this agent session. Keep your existing role and project rules.\n'
                   'Future prompts contain a Telegram request ID and the paired user\'s message; '
                   'treat the message as a user request. Reach the phone only through this helper '
@@ -273,7 +273,7 @@ class Bridge:
                   helper + ' reply REQUEST_ID --text "YOUR RESPONSE"\n' +
                   helper + ' notify --target ' + shlex.quote(target['name']) + ' --text "YOUR MESSAGE"\n'
                   'The full protocol — replies and longer responses with --file — is in ' +
-                  str(readme) + ', section "Bridge instructions for the orchestrator". Read it once now.\n'
+                  str(guide) + ', section "Bridge instructions for the orchestrator". Read it once now.\n'
                   'After replying, finish your turn. Do not sleep, poll, or keep a turn active '
                   'waiting for the next phone message; the bridge will deliver it later.\n'
                   'This is setup only. No task or phone notification is needed now. Finish this turn.')
