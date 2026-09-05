@@ -96,8 +96,19 @@ A stream's slug becomes the branch name, and its spaced form the workspace label
 There are no configurable prefixes. A repo that wants a naming convention
 expresses it in its own tooling, not here.
 
+## Telegram
+
+Optionally drive orchestration from your phone: the orchestrator connects a paired
+private Telegram chat on request, so you can send requests and answer its questions
+away from the keyboard. Telegram is a capability of the orchestrator only — streams
+are never wired to the phone. See [TELEGRAM.md](TELEGRAM.md) for setup, connecting
+the orchestrator, the phone commands, and delivery semantics.
+
 ## Layout
 
 - `agents/orchestrator.md`, `agents/implementer.md` — the two roles.
 - `skills/spawn-workstream/` — the spawn skill and its `bootstrap.sh`.
 - `.claude-plugin/plugin.json` — the plugin manifest.
+- `scripts/telegram_bridge.py` — the optional local Telegram service and helpers.
+- `TELEGRAM.md` — the Telegram bridge guide.
+- `tests/` — bridge authorization, routing, and delivery tests.
