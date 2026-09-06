@@ -102,9 +102,11 @@ expresses it in its own tooling, not here.
 
 Optionally drive orchestration from your phone: the orchestrator connects a paired
 private Telegram chat on request, so you can send requests and answer its questions
-away from the keyboard. Telegram is a capability of the orchestrator only — streams
-are never wired to the phone. See [TELEGRAM.md](TELEGRAM.md) for setup, connecting
-the orchestrator, the phone commands, and delivery semantics.
+away from the keyboard. When the bridge is up, each stream the orchestrator spawns
+is registered as its own phone target too, so a stream that stalls on a question or
+blocker reaches you directly; it is unregistered again at teardown. See
+[TELEGRAM.md](TELEGRAM.md) for setup, connecting the orchestrator, the phone
+commands, and delivery semantics.
 
 ## Layout
 
