@@ -186,6 +186,15 @@ class BridgeTests(unittest.TestCase):
         self.assertIsNone(bridge.get_meta(self.db, 'brief:' + replacement))
         self.assertEqual([], self.db.execute('SELECT * FROM routes').fetchall())
 
+    def test_briefed_registration_skips_the_bridge_first_idle_brief(self):
+        briefed = bridge.register(self.db, self.herdr, 'stream-a', 'w9:p1', briefed=True)
+        plain = bridge.register(self.db, self.herdr, 'stream-b', 'w9:p2')
+        self.assertEqual('sent', bridge.get_meta(self.db, 'brief:' + briefed))
+        self.assertIsNone(bridge.get_meta(self.db, 'brief:' + plain))
+        self.app.tick()
+        setups = [pane for pane, text in self.herdr.prompts if 'Telegram bridge setup' in text]
+        self.assertEqual(['w9:p2'], setups)
+
     def test_repeated_registration_preserves_queue_and_brief(self):
         self.app.ingest([update(1, 'queued request')])
         target = bridge.register(self.db, self.herdr, 'orchestrator', 'w1:p1', True)

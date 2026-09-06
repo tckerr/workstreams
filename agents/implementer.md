@@ -192,6 +192,22 @@ nothing and a merge conflict at that point is pure noise. Leave it where the
 merge left it. The one step the project does not own is telling the orchestrator,
 below, because the orchestrator is this plugin's, not the project's.
 
+## Reaching the user on Telegram
+
+Your opening prompt may say a Telegram bridge is up and this stream is registered
+on it. When it does, a genuine question or a blocker is not something to print and
+stall on where nobody is watching — route it to the user's phone with the helper
+command that same prompt gives you, and then finish your turn. Terminal output
+alone never reaches the phone.
+
+The user's reply comes back later as a fresh prompt beginning `Telegram request
+<id>:`. Treat it as a message from the user — the answer to what you asked, or a
+new instruction — and reply to it with the `reply <id>` helper from your opening
+prompt so your response reaches their phone. Keep this for real questions and
+blockers; it does not replace reporting your milestones to the orchestrator, which
+is unchanged. If your opening prompt says nothing about a bridge, there is none,
+and you have nothing to do here.
+
 ## Reporting done
 
 Your first message names the orchestrator, as `uds:/path/to/socket`. Once your
