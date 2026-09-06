@@ -383,7 +383,7 @@ def unregister(db, name):
             db.execute("DELETE FROM meta WHERE key='default_target'")
 
 
-def register(db, herdr, name, pane, default=False):
+def register(db, herdr, name, pane, default=False, briefed=False):
     state, identity = herdr.snapshot(pane)
     target_id = hashlib.sha256((pane + identity).encode()).hexdigest()[:20]
     old = db.execute('SELECT id FROM targets WHERE name=?', (name,)).fetchone()
@@ -396,6 +396,10 @@ def register(db, herdr, name, pane, default=False):
                    (target_id, name, pane, identity, state))
         if default:
             set_meta(db, 'default_target', target_id)
+        if briefed:
+            # The stream was pre-wired at spawn, so skip the bridge's lazy
+            # first-idle brief that would inject a redundant setup prompt.
+            set_meta(db, 'brief:' + target_id, 'sent')
     return target_id
 
 
@@ -431,6 +435,7 @@ def parser():
     p_reg.add_argument('name')
     p_reg.add_argument('--pane', required=True)
     p_reg.add_argument('--default', action='store_true')
+    p_reg.add_argument('--briefed', action='store_true')
     p_del = sub.add_parser('unregister')
     p_del.add_argument('name')
     for command in ('notify', 'reply'):
@@ -461,7 +466,7 @@ def main(argv=None):
     elif args.command == 'connect':
         connect(root, db, Herdr())
     elif args.command == 'register':
-        register(db, Herdr(), args.name, args.pane, args.default)
+        register(db, Herdr(), args.name, args.pane, args.default, args.briefed)
         print('Registered ' + args.name)
     elif args.command == 'unregister':
         with db:

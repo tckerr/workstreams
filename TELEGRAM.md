@@ -2,9 +2,11 @@
 
 Drive workstream orchestration from your phone: send requests, receive the
 orchestrator's questions and blocked-agent alerts, and reply straight back. The
-optional bridge connects one private Telegram chat to the orchestrator agent.
-Telegram is a capability of the orchestrator only — streams are never wired to the
-phone; the orchestrator relays to and from them through Herdr as usual.
+optional bridge connects one private Telegram chat to the orchestrator agent and
+to the streams it spawns. When the bridge is up, spawning a stream registers it as
+its own phone target, so a stream that stalls on a question or a blocker reaches
+you directly rather than pausing silently where nobody is watching; it is
+unregistered again at teardown.
 
 The bridge uses Python 3.9+ with no third-party packages. Run it inside Herdr on
 the same Mac as the agents. It uses Telegram long polling, so there is no public
@@ -55,8 +57,13 @@ pairing, registration, and queued work.
 
 - Send a message to instruct the orchestrator, including requests to spawn
   workstreams using its existing project setup and rules.
-- Reply to a notification to continue that thread.
-- `/status` lists the orchestrator's delivery state.
+- Reply to a notification to continue that thread — a stream's own alert routes
+  your reply straight back to that stream, not to the orchestrator.
+- `/status` lists every registered agent by name — the orchestrator and each live
+  stream — with its delivery state.
+- `/use NAME` makes a named agent the default for plain messages, and
+  `/to NAME MESSAGE` sends one message to a named agent. A spawned stream's name
+  is its slug, the same name shown on the spawn summary's `telegram` line.
 
 Each accepted message gets a 👀 reaction rather than an acknowledgement message.
 There is no separate delivery notification; the orchestrator's answer replies to
@@ -64,13 +71,16 @@ your original message, and a failed reaction does not block the answer.
 
 ## Bridge instructions for the orchestrator
 
-The setup brief points the orchestrator here rather than repeating the protocol in
-the prompt. The orchestrator reaches the phone only through the bridge helper — the
-absolute `telegram_bridge.py` invocation in its setup brief, including `--state-dir` —
-because its own terminal output never reaches Telegram. After setup, each delivered
-prompt is `Telegram request <id>:` followed by your message; the orchestrator
-treats it as a user request and answers, or asks a clarifying question, with
-`reply` and the request ID. It uses `--file PATH` instead of `--text` for a long
+The same protocol serves the orchestrator and any stream registered on the bridge.
+The orchestrator learns it from a setup brief the bridge sends once when its
+session first goes idle, pointing here rather than repeating it in the prompt; a
+spawned stream is wired at spawn instead, so its opening prompt carries the helper
+commands directly and the bridge does not re-brief it. Either way the agent reaches
+the phone only through the bridge helper — the absolute `telegram_bridge.py`
+invocation with its `--state-dir` — because its own terminal output never reaches
+Telegram. Each delivered prompt is `Telegram request <id>:` followed by your
+message; the agent treats it as a user request and answers, or asks a clarifying
+question, with `reply` and the request ID. It uses `--file PATH` instead of `--text` for a long
 response, and `notify` for an unsolicited question or alert. After replying it
 finishes its turn rather than sleeping or polling; the bridge delivers the next
 message later as a fresh prompt.
@@ -92,11 +102,21 @@ is not repeated when the bridge restarts.
 
 ## Delivery semantics and limits
 
-The bridge alerts once when the orchestrator enters `blocked` at an approval or
-question dialog. Handle these in Herdr; approval keystrokes are not forwarded.
-Questions sent through `notify` can be answered from your phone normally. Herdr may
-report a usage-limited session as `done`, which the bridge does not detect
-separately, so “delivered” means the prompt was submitted, not answered.
+The bridge alerts once when a registered agent enters `blocked` at an approval or
+question dialog, and once when its pane goes `unavailable` — the pane is gone or
+its process was swapped. Handle a `blocked` dialog in Herdr; approval keystrokes
+are not forwarded. Questions sent through `notify` can be answered from your phone
+normally.
+
+Only those states auto-alert. An agent that quietly ends its turn — including
+after an API error — sits at `idle` or `done`, the normal ready-to-receive states,
+indistinguishable from finished work, so it is never auto-alerted. That is why a
+wired stream must notify the phone itself, from within its turn, when it wants to
+ask something: run its `notify` helper before it stops. A hard crash mid-turn
+cannot do that, so `blocked` and `unavailable` remain the automatic safety net for
+the cases the agent cannot report on its own. Herdr may also report a usage-limited
+session as `done`, which the bridge does not detect separately, so “delivered”
+means the prompt was submitted, not answered.
 
 Incoming updates are deduplicated and stored before forwarding. A crash or timeout
 during delivery is marked `uncertain` and is not retried automatically, because the

@@ -235,6 +235,36 @@ The orchestrator is uds:$CLAUDE_CODE_MESSAGING_SOCKET. Report there when you are
 done, as your brief describes."
 fi
 
+# Wire this stream into the Telegram bridge so its own questions and blockers
+# reach the paired phone directly, not only the orchestrator. Register after the
+# agent has started (its foreground process is now what snapshot pins) with
+# --briefed, so the bridge does not later re-inject its setup prompt mid-work.
+# Gated on telegram being set up on this machine — a config.json in the state
+# dir — because register() mkdirs the state tree, and an unconditional call would
+# leave a telegram state tree on machines that never use telegram. Best-effort
+# throughout: any failure prints nothing fatal and the spawn proceeds.
+bridge_script=$(cd "$here/../.." && pwd)/scripts/telegram_bridge.py
+telegram_state="${WORKSTREAMS_TELEGRAM_STATE:-$HOME/.config/workstreams/telegram}"
+telegram_status="(not set up)"
+if [ -f "$telegram_state/config.json" ]; then
+  if python3 "$bridge_script" --state-dir "$telegram_state" register "$agent" \
+      --pane "$dev" --briefed >/dev/null 2>&1; then
+    telegram_status="$agent (registered)"
+    priming="$priming
+A Telegram bridge is up and this stream is registered on it as \"$agent\". To ask
+the user a question or report a blocker, send it to the phone with the helper —
+terminal output does not reach Telegram:
+  python3 $bridge_script --state-dir $telegram_state notify --target $agent --text 'YOUR MESSAGE'
+The user's reply arrives later as a fresh prompt beginning 'Telegram request
+<id>:'; treat that as a message from the user and answer it with:
+  python3 $bridge_script --state-dir $telegram_state reply <id> --text 'YOUR RESPONSE'
+This is for genuine questions and blockers only, and does not replace reporting
+your milestones to the orchestrator."
+  else
+    telegram_status="(registration failed)"
+  fi
+fi
+
 if [ -n "$task" ]; then
   opening="$priming
 
@@ -269,6 +299,7 @@ artifact   ${second:-(none)}${second:+ ($HERDR_WS_SECOND_PANE_LABEL)}
 files      ${files:-(none)}${files:+ (yazi, Files tab)}
 git        ${gitview:-(none)}${gitview:+ (lazygit, Git tab)}
 shell      ${shell:-(none)}${shell:+ (Shell tab)}
+telegram   $telegram_status
 survivor   $HERDR_WS_SURVIVOR_GLOB
 kind       $kind
 brief      $brief_via

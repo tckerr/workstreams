@@ -104,10 +104,15 @@ reproducing it here.
 ## Telegram mode
 
 The optional `scripts/telegram_bridge.py` service connects a paired Telegram
-account to you so the user can drive orchestration from a phone. Telegram is a
-capability of the orchestrator only: streams are never wired to the phone, and you
-relay to and from them through Herdr as usual. Setup — the bot token and pairing —
-is a one-time local step the user runs; see `TELEGRAM.md`.
+account to you so the user can drive orchestration from a phone. Setup — the bot
+token and pairing — is a one-time local step the user runs; see `TELEGRAM.md`.
+
+When the bridge is up, spawning a stream registers it as its own phone target
+too, under its agent/slug name (gated on Telegram being set up on this machine).
+So a stream answers the phone directly for its own questions and blockers, and the
+user reaches it by replying to its alerts or with `/to <name> <message>`. You
+still own spawning and teardown, but you are not in the loop for a stream's own
+Q&A — teardown unregisters the stream, as its section describes.
 
 When the user asks you to connect Telegram, and the bot is already paired, invoke:
 
@@ -225,6 +230,22 @@ stop it, so stopping them first looks like it failed. Closing the workspace ends
 the pane and the artifact, and those resources go with it. Anything still listed
 after that outlived its pane and is serving a directory that no longer exists —
 kill the pids, since the store went with the worktree.
+
+Never tear down streams in parallel, and never close workspaces in a batch.
+Concurrent `herdr worktree remove` calls crash herdr. When several streams report
+done at once, queue them and finish one teardown end to end before starting the
+next; the workspace removals in particular must be strictly sequential.
+
+When Telegram is set up, drop the stream from the phone roster as part of
+teardown, best-effort, so its name does not linger in `/status`:
+
+```bash
+python3 "$CLAUDE_PLUGIN_ROOT/scripts/telegram_bridge.py" unregister <stream name>
+```
+
+Add `--state-dir` before the subcommand if the user set
+`WORKSTREAMS_TELEGRAM_STATE`. The stream name is the one printed on the spawn
+summary's `telegram` line, which is the stream's agent/slug name.
 
 Then bring the main checkout up to date. A stream reporting done means its work
 just landed, so your `main` is behind by at least that merge:
