@@ -81,6 +81,9 @@ class Herdr:
             raise BridgeError('Herdr command failed or timed out') from None
         if result.returncode:
             raise BridgeError('Herdr rejected ' + ' '.join(args[:2]))
+        # Not every herdr command answers with JSON; `pane run` prints nothing.
+        if not result.stdout.strip():
+            return {}
         try:
             return json.loads(result.stdout)['result']
         except (ValueError, KeyError):
