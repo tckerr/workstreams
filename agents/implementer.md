@@ -203,9 +203,10 @@ orchestrator one message with `SendMessage`, using that address verbatim as `to`
 - that your work is merged and nothing is uncommitted, so teardown is safe
 
 You do not have to be sitting on the merged commit to say that. The orchestrator
-compares patches, not commits, so a branch that is merely behind main still
-verifies clean. What it cannot verify past is uncommitted work, so if anything is
-still dirty, say what it is instead of reporting done.
+confirms the landing from the PR you name, so a branch left where the merge left
+it — behind main, or on its pre-squash commit — still verifies clean. What it
+cannot verify past is uncommitted work, so if anything is still dirty, say what it
+is instead of reporting done.
 
 It tears the stream down from there. That is the only reason it needs telling: it
 cannot see your pane, and a stream nobody reports leaves a worktree and a branch
