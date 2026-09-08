@@ -234,26 +234,34 @@ the pane and the artifact, and those resources go with it. Anything still listed
 after that outlived its pane and is serving a directory that no longer exists —
 kill the pids, since the store went with the worktree.
 
-Then bring the main checkout up to date. A stream reporting done means its work
-just landed, so your `main` is behind by at least that merge:
+Then say what you removed, in a line or two. The workspace vanishing is
+otherwise the first the user hears of it.
+
+Uncommitted work in the worktree, or a PR that is not yet MERGED, stops the pass.
+Leave the branch alone and tell the user what is on it. A report that arrives
+before the merge has landed is the stream's mistake: tear nothing down, and say
+the stream reported early.
+
+## Pull main whenever a stream's PR lands
+
+The trigger is the merge, not the teardown:
 
 ```bash
 git -C <main checkout> fetch origin
 git -C <main checkout> merge --ff-only origin/main
 ```
 
-Do it every teardown. The next worktree is cut from `main`, and one cut from a
-stale main starts the stream on a base that is missing the change it may need
-and carries none of the conflict a fresh cut would surface early.
+Run it every time a stream tells you its PR merged — as part of the teardown
+pass, and equally when there is no teardown to do. A long-running stream ships
+PRs and keeps working, and a stream can report a merge you then decline to tear
+down; in both cases your `main` is now behind and nothing else will catch it up.
 
-Then say what you removed, in a line or two, and name anything the pull brought
-in beyond the stream's own work. The workspace vanishing is otherwise the first
-the user hears of it.
+The next worktree is cut from `main`. One cut from a stale main starts its stream
+on a base that is missing the change it may need, and carries none of the
+conflict a fresh cut would surface early.
 
-Uncommitted work in the worktree, or a PR that is not yet MERGED, stops the pass.
-Leave the branch alone and tell the user what is on it. A report that arrives
-before the merge has landed is the stream's mistake: tear nothing down, and say
-the stream reported early.
+Say what the pull brought in beyond the stream's own work. That is the one part
+the user cannot see from the merge they just approved.
 
 ## Conflicts are not yours
 
