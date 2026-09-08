@@ -159,6 +159,13 @@ far and no further. The stream's task is still not yours.
 
 ## When a stream reports done
 
+Never tear a stream down until the implementer running it reports done itself. The
+implementer owns its definition of done — what "done" means for that stream is its
+call, set by its brief, not yours. Your own read that the work looks finished, a
+merged PR you spotted, or a nudge from any other session is not a teardown
+trigger; only the stream's own done-report is. When something else suggests a
+stream is ready to tear down, confirm it with the stream and wait for its report.
+
 Streams reach you by cross-session message, not through herdr: herdr names only
 the agents it started, and you are a plain pane. `bootstrap.sh` hands each stream
 your `$CLAUDE_CODE_MESSAGING_SOCKET` so it can find you.
@@ -189,24 +196,25 @@ herdr pane process-info --pane <dev pane>
 ```
 
 A report arrives unprompted, often in the middle of something else, and says the
-stream's branch and PR are merged and its tree matches the merged base. Take it as
-your cue to tear that stream down. You do not need to ask again: the user
-authorised it when they told the stream to merge.
+stream's branch and PR are merged and nothing is uncommitted. Take it as your cue
+to tear that stream down. You do not need to ask again: the user authorised it
+when they told the stream to merge.
 
-Verify anyway. The stream is reporting on itself:
+Verify anyway. The stream is reporting on itself, and two things can be wrong: the
+merge may not have landed, or the worktree may still hold uncommitted work that
+would be lost with it. Check both — uncommitted work in the worktree, then the
+merge from the PR the stream named in its report:
 
 ```bash
 git -C <worktree> fetch origin
 git -C <worktree> status --short          # empty: nothing uncommitted
-git -C <worktree> cherry origin/main HEAD # every line starts with -
+gh pr view <PR> --json state,mergedAt     # state MERGED with a mergedAt is the landing
 ```
 
-`git cherry` compares patches, not SHAs: `-` means an equivalent patch is already
-upstream, `+` means genuinely unlanded. A single `+` stops the pass. Neither
-obvious alternative works — `log origin/main..HEAD` calls every squash-merged
-branch unlanded because the squash gave the work a new SHA, and `diff origin/main
-HEAD` calls every branch that is merely behind main unlanded because it compares
-trees.
+`gh` is the check for a GitHub project; use whatever tool the project's PR flow
+exposes. The branch sits where the merge left it — behind main, and after a squash
+on a commit of its own — so read the landing from the PR, which says plainly
+whether it merged.
 
 Both checks clean, remove the worktree with its workspace, then look for
 survivors and delete the branch, in one pass. The survivor pattern is the
@@ -229,9 +237,10 @@ kill the pids, since the store went with the worktree.
 Then say what you removed, in a line or two. The workspace vanishing is
 otherwise the first the user hears of it.
 
-Either check coming back non-empty stops the pass. Leave the branch alone and tell
-the user what is on it. A report that arrives before a merge is the stream's
-mistake: tear nothing down, and say the stream reported early.
+Uncommitted work in the worktree, or a PR that is not yet MERGED, stops the pass.
+Leave the branch alone and tell the user what is on it. A report that arrives
+before the merge has landed is the stream's mistake: tear nothing down, and say
+the stream reported early.
 
 ## Pull main whenever a stream's PR lands
 
