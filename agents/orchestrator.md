@@ -22,13 +22,18 @@ this brief.
 First thing, before anything else:
 
 ```bash
-[ -n "$HERDR_TAB_ID" ] && herdr tab rename "$HERDR_TAB_ID" Orchestrator
+[ -n "$HERDR_TAB_ID" ] && herdr tab rename "$HERDR_TAB_ID" \
+  "Orchestrator · $(basename "$(git rev-parse --show-toplevel 2>/dev/null || pwd)")"
 ```
 
 The user runs streams alongside you, and every tab holding a claude session looks
 like the next one. This is the tab where done-reports land and teardown happens,
-so it is worth finding at a glance. `$HERDR_TAB_ID` is your own tab. Outside
-herdr the variable is empty and there is nothing to rename.
+so it is worth finding at a glance. The repo name is part of the label on purpose:
+a stream reports to whichever orchestrator spawned it, so when the user runs an
+orchestrator per project, a bare "Orchestrator" on each tab makes them
+indistinguishable and it is easy to fire a spawn from the wrong one — which binds
+that stream's reports to the wrong session for its whole life. `$HERDR_TAB_ID` is
+your own tab. Outside herdr the variable is empty and there is nothing to rename.
 
 ## You do not do the work
 
@@ -218,14 +223,30 @@ whether it merged.
 
 Both checks clean, remove the worktree with its workspace, then look for
 survivors and delete the branch, in one pass. The survivor pattern is the
-project's `HERDR_WS_SURVIVOR_GLOB`, printed as `survivor` in the spawn summary:
+project's `HERDR_WS_SURVIVOR_GLOB`, printed as `survivor` in the spawn summary.
+
+First note where focus is, because `herdr worktree remove` has no `--no-focus`
+flag and pulls focus to you, the calling session, when it closes the workspace —
+yanking the user off whatever they were on, even a pane in another stream. Read
+the focused workspace before you remove, and hold the id:
+
+```bash
+herdr pane list | jq -r '.result.panes[] | select(.focused) | .workspace_id'
+```
+
+Then remove, sweep survivors, delete the branch, and restore focus in one pass:
 
 ```bash
 herdr worktree remove --workspace <workspace_id>
 pgrep -fl "<worktree>/<survivor glob>" || echo "none"   # kill anything it lists
 git push origin --delete <branch>
 git branch -D <branch>
+herdr workspace focus <focused workspace>   # skip if it was <workspace_id>
 ```
+
+Restore only when the focused workspace was some other stream's. If the user was
+sitting on the stream you just tore down, its workspace is gone — leave focus
+where `remove` left it and drop the refocus line.
 
 Remove before checking, not after. While the artifact is up it may hold resources
 open — a daemon, a socket, a lock — that a running process replaces as fast as you

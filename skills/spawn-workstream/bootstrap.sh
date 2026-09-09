@@ -27,6 +27,37 @@ config="$repo/.herdr/workstreams.sh"
 # shellcheck disable=SC1090
 source "$config" || die "could not source $config"
 
+# The stream reports to whoever spawns it: bootstrap bakes the spawning session's
+# CLAUDE_CODE_MESSAGING_SOCKET in as the orchestrator address. Run from an
+# orchestrator whose session lives in a different repo than the target, and every
+# report is silently bound to the wrong session for the stream's whole life. That
+# binding survives /clear, so it is easy to trip and invisible afterward. Catch it
+# here: resolve the socket owner's repo and refuse a cross-repo spawn. Best-effort
+# — if the owner or its repo cannot be determined, do not block.
+repo_id() {  # canonical shared git dir, so worktrees of one repo compare equal
+  local d=$1 gcd
+  gcd=$(git -C "$d" rev-parse --git-common-dir 2>/dev/null) || return 0
+  ( cd "$d" && cd "$gcd" 2>/dev/null && pwd -P ) || return 0
+}
+if [ -n "${CLAUDE_CODE_MESSAGING_SOCKET:-}" ] && [ "${HERDR_WS_ALLOW_FOREIGN_ORCHESTRATOR:-}" != 1 ]; then
+  orch_pid=${CLAUDE_CODE_MESSAGING_SOCKET##*/}; orch_pid=${orch_pid%.sock}
+  orch_cwd=""
+  if [[ $orch_pid =~ ^[0-9]+$ ]]; then
+    if [ -r "/proc/$orch_pid/cwd" ]; then
+      orch_cwd=$(readlink "/proc/$orch_pid/cwd" 2>/dev/null) || orch_cwd=""
+    elif command -v lsof >/dev/null 2>&1; then
+      orch_cwd=$(lsof -a -p "$orch_pid" -d cwd -Fn 2>/dev/null | sed -n 's/^n//p' | head -1) || orch_cwd=""
+    fi
+  fi
+  if [ -n "$orch_cwd" ]; then
+    orch_repo=$(repo_id "$orch_cwd")
+    target_repo=$(repo_id "$repo")
+    if [ -n "$orch_repo" ] && [ -n "$target_repo" ] && [ "$orch_repo" != "$target_repo" ]; then
+      die "the orchestrator that ran this spawn is sitting in $orch_cwd, a different repo than the target $repo. The stream would report to that orchestrator, not this repo's — this is how reports get misrouted. Spawn from the $repo orchestrator, or set HERDR_WS_ALLOW_FOREIGN_ORCHESTRATOR=1 to override."
+    fi
+  fi
+fi
+
 : "${HERDR_WS_SECOND_PANE_LABEL:=}"
 : "${HERDR_WS_SURVIVOR_GLOB:=target}"
 : "${HERDR_WS_DEFAULT_KIND:=claude}"
