@@ -1,0 +1,6 @@
+# Preview-only layout for showing a single file in a split pane: give the whole
+# width to the preview and hide the parent and current-directory columns, so
+# yazi reads as a file viewer rather than a cramped file manager. Pointed at via
+# YAZI_CONFIG_HOME by scripts/browse.sh; the user's own yazi config is untouched.
+[mgr]
+ratio = [0, 0, 1]

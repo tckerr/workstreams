@@ -145,6 +145,20 @@ class BootstrapTest(unittest.TestCase):
                          ["--dangerously-skip-permissions", "--effort", "high", "--agent",
                           "workstreams:implementer", "--model", "claude-opus-4-8"])
 
+    def test_files_tab_yazi_uses_the_client_id_browse_derives(self):
+        # The Files-tab yazi must launch with the same --client-id browse.sh
+        # derives for the workspace, or the browse skill's `show`/`dir` cannot
+        # reach it. bootstrap inlines the formula; assert it stays in step with
+        # browse.sh's own ws_client_id for the workspace fake herdr returns (w18).
+        _, _, _ = self.bootstrap("claude")
+        calls = [json.loads(line) for line in (self.directory / "calls.jsonl").read_text().splitlines()]
+        launch = next(c[3] for c in calls if c[:2] == ["pane", "run"] and "yazi" in c[3])
+        browse = ROOT / "scripts/browse.sh"
+        expected = subprocess.run(["bash", "-c", f"source '{browse}'; ws_client_id w18"],
+                                  capture_output=True, text=True, check=True).stdout.strip()
+        self.assertIn(f"yazi --client-id {expected} ", launch)
+        self.assertIn(str(self.tree), launch)
+
 
 if __name__ == "__main__":
     unittest.main()

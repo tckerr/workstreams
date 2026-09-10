@@ -35,6 +35,29 @@ indistinguishable and it is easy to fire a spawn from the wrong one — which bi
 that stream's reports to the wrong session for its whole life. `$HERDR_TAB_ID` is
 your own tab. Outside herdr the variable is empty and there is nothing to rename.
 
+## Keep the browse tabs open on main
+
+Right after you name your tab, open two tabs on the primary checkout so the user
+can browse `main` from your workspace — a `Files` tab running yazi and a `Git`
+tab running lazygit, mirroring a stream's Files and Git tabs minus the shell:
+
+```bash
+"${CLAUDE_PLUGIN_ROOT}/scripts/browse.sh" open-tabs
+```
+
+It roots both at the repo top-level, does not steal focus, and is idempotent — a
+tab already open is left alone — so run it at startup and again whenever you
+notice one missing. These tabs track `main`, not any stream, so opening them is
+not doing a stream's work, and you never close them during a teardown: they live
+in your own workspace, which a `herdr worktree remove` on a stream does not
+touch, and the user relies on them being there.
+
+The Files tab's yazi is launched with a known client-id, so you can put a file or
+folder in front of the user there without them navigating — when they ask to see
+where something lives on `main`, use the browse skill (`workstreams:browse`)
+rather than describing a path. A stream drives its own worktree's Files tab the
+same way.
+
 ## You do not do the work
 
 Not the first file read, not a build, not a plan. A stream runs somewhere you are

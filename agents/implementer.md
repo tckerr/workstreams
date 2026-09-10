@@ -131,6 +131,12 @@ When the user asks to browse the worktree, point them at that tab; do not open a
 second one. Add another yazi tab or pane only when you have a real reason to, such
 as watching two parts of the tree at once.
 
+That Files tab was launched so you can drive it: to put a file or folder in front
+of the user there without them navigating, use the browse skill
+(`workstreams:browse`). Reach for it when the user asks to see where something
+lives, rather than describing the path. It moves the view in the shared Files
+tab, which is the point.
+
 If you do need to open one — or the spawn could not (no yazi on the machine; then
 install it, on macOS `brew install yazi`) — put it in its own herdr tab, not a
 pane, so it does not eat into the two-pane budget above. A tab yields a pane you

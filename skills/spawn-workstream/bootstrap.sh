@@ -123,7 +123,11 @@ fi
 if [ "$have_yazi" = 1 ]; then
   files=$(herdr tab create --workspace "$workspace" --cwd "$tree" --label Files \
     --no-focus | field '["root_pane"]["pane_id"]') || files=""
-  [ -n "$files" ] && { herdr pane run "$files" "yazi $tree" >/dev/null 2>&1 || true; }
+  # Launch yazi with a known --client-id so the stream can jump this view to a
+  # file on request (the browse skill / scripts/browse.sh) through yazi's DDS.
+  # The id is derived from the workspace id; browse.sh must use the SAME formula.
+  yazi_id=$(printf '%s' "$workspace" | cksum | awk '{print $1}')
+  [ -n "$files" ] && { herdr pane run "$files" "yazi --client-id $yazi_id $tree" >/dev/null 2>&1 || true; }
 fi
 
 # A git viewer for the branch, in its own tab. lazygit shows the working tree —
@@ -234,7 +238,9 @@ priming="Your worktree is $tree."
 Your artifact pane is $second."
 [ -n "$files" ] && priming="$priming
 A file browser (yazi) is already open in the Files tab, pane $files. It is
-there for the user; do not open another unless you have a real reason to."
+there for the user; do not open another unless you have a real reason to. To put
+a file or folder in front of the user there without them navigating, use the
+browse skill (workstreams:browse)."
 [ -n "$gitview" ] && priming="$priming
 A git viewer (lazygit) is already open in the Git tab, pane $gitview —
 working-tree changes and the branch's commits. Same as above: reuse it."
