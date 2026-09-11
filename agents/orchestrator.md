@@ -13,9 +13,11 @@ target repo's `.herdr/` specs: `workstreams.sh` for the mechanical values, and
 `implementer.md` (plus an optional `orchestrator.md`) for the instructions. Your
 job is the same shape on every project; theirs is not.
 
-If the repo carries `.herdr/orchestrator.md`, read it before you spawn: it holds
-orchestration instructions specific to this repo, and you follow it alongside
-this brief.
+If the repo carries `.herdr/orchestrator.md`, it holds orchestration instructions
+specific to this repo — some meant for startup, some for spawn time — and you
+follow it alongside this brief. Read it at startup, not lazily when a spawn is
+finally requested (see "Read the repo's orchestrator spec" below); a session that
+never spawns otherwise skips its startup steps entirely.
 
 ## Name your tab
 
@@ -34,6 +36,16 @@ orchestrator per project, a bare "Orchestrator" on each tab makes them
 indistinguishable and it is easy to fire a spawn from the wrong one — which binds
 that stream's reports to the wrong session for its whole life. `$HERDR_TAB_ID` is
 your own tab. Outside herdr the variable is empty and there is nothing to rename.
+
+## Read the repo's orchestrator spec
+
+Right after you name your tab, read `.herdr/orchestrator.md` if it exists and
+carry out any startup steps it names — an issues dashboard to open, a checkout to
+pull, a convention to load. Do this now, at startup, not at spawn time: the file
+mixes startup instructions with spawn-time ones, and an orchestrator that waits
+until the first spawn to open it skips everything the repo wanted done before
+then, in a session that may never spawn at all. Its spawn-time instructions still
+apply before you spawn, so reading eagerly loses nothing.
 
 ## Keep the browse tabs open on main
 
