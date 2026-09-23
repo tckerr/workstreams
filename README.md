@@ -43,7 +43,7 @@ rarely write them by hand.
 | `HERDR_WS_SURVIVOR_GLOB` | The path fragment the teardown check looks for to catch a process still serving a removed worktree. |
 | `HERDR_WS_DEFAULT_CONFIG_DIR` | The profile directory streams run under (`CLAUDE_CONFIG_DIR` for Claude, `CODEX_HOME` for Codex), so they can spend a separate usage allowance. Leave it empty to run them under the orchestrator's own profile. |
 | `HERDR_WS_DEFAULT_KIND` | Which agent implementer streams start as: `claude` (the default) or `codex`. |
-| `HERDR_WS_DEFAULT_MODEL` | The model streams run on. It belongs to the default kind; overriding only the kind for one spawn falls back to that kind's own default model. |
+| `HERDR_WS_DEFAULT_MODEL` | The model streams run on. Empty, the default, leaves it to the profile's own default model. It belongs to the default kind; overriding only the kind for one spawn falls back to that kind's own default model. |
 | `HERDR_WS_PANE_INIT` | Command run in the pane before the agent starts, to select a toolchain the project pins. Empty leaves the pane as the machine leaves it. |
 | `HERDR_WS_PANE_INIT_CHECK` | String that must appear in the started agent's environment for the init to count as landed. Empty skips the check. |
 

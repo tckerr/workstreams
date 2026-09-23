@@ -143,7 +143,7 @@ class BootstrapTest(unittest.TestCase):
         start = next(call for call in calls if call[:2] == ["agent", "start"])
         self.assertEqual(start[start.index("--") + 1:],
                          ["--dangerously-skip-permissions", "--effort", "high", "--agent",
-                          "workstreams:implementer", "--model", "claude-opus-4-8"])
+                          "workstreams:implementer"])
 
     def test_files_tab_yazi_uses_the_client_id_browse_derives(self):
         # The Files-tab yazi must launch with the same --client-id browse.sh
