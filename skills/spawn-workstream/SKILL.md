@@ -102,7 +102,8 @@ the agent did not start; read the pane before assuming the script failed.
 
 ## Choosing a model
 
-Streams run on the project's `HERDR_WS_DEFAULT_MODEL`. Set `HERDR_WS_MODEL` only when the
+Streams run on the project's `HERDR_WS_DEFAULT_MODEL`, or on the profile's own default
+model when the project leaves it empty. Set `HERDR_WS_MODEL` only when the
 user names a different model for this stream, and leave it out of the task text,
 since a stream cannot act on an instruction about its own model:
 

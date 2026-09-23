@@ -103,7 +103,8 @@ each in the user's terms, not the variable's:
   check. Usually a build output dir like `target` or `node_modules/.bin`.
 - **profile and model defaults** (`HERDR_WS_DEFAULT_CONFIG_DIR`,
   `HERDR_WS_DEFAULT_MODEL`) — which Claude profile streams run under (a separate
-  usage allowance from yours) and which model.
+  usage allowance from yours) and which model. Leave the model empty to use the
+  profile's own default.
 - **pane init** (`HERDR_WS_PANE_INIT`, `HERDR_WS_PANE_INIT_CHECK`) — a command
   run in the pane before the agent starts, for a toolchain the project pins and
   the machine's default does not match: a node version, a language runtime. The
