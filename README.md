@@ -46,6 +46,8 @@ rarely write them by hand.
 | `HERDR_WS_DEFAULT_MODEL` | The model streams run on. Empty, the default, leaves it to the profile's own default model. It belongs to the default kind; overriding only the kind for one spawn falls back to that kind's own default model. |
 | `HERDR_WS_PANE_INIT` | Command run in the pane before the agent starts, to select a toolchain the project pins. Empty leaves the pane as the machine leaves it. |
 | `HERDR_WS_PANE_INIT_CHECK` | String that must appear in the started agent's environment for the init to count as landed. Empty skips the check. |
+| `HERDR_WS_PREPARE` | Command run in the dev pane after the pane init, from the worktree root, to prepare a fresh worktree (for example, seed a build cache). The agent starts after it finishes. A failure is reported in the spawn summary and does not stop the spawn. Empty skips it. |
+| `HERDR_WS_PREPARE_TIMEOUT` | Seconds bootstrap waits for the prepare step before it stops the spawn. Default 3600. |
 
 Four keys override the defaults for a single spawn, on the command line:
 `HERDR_WS_DESC` (labels the dev pane), `HERDR_WS_KIND`, `HERDR_WS_MODEL`, and

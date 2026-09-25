@@ -65,6 +65,8 @@ fi
 : "${HERDR_WS_DEFAULT_CONFIG_DIR:=}"
 : "${HERDR_WS_PANE_INIT:=}"
 : "${HERDR_WS_PANE_INIT_CHECK:=}"
+: "${HERDR_WS_PREPARE:=}"
+: "${HERDR_WS_PREPARE_TIMEOUT:=3600}"
 
 branch="$slug"
 label="${slug//-/ }"
@@ -179,6 +181,34 @@ fi
 if [ -n "$HERDR_WS_PANE_INIT" ]; then
   herdr pane run "$dev" "$HERDR_WS_PANE_INIT" >/dev/null \
     || die "could not run the project's pane init on $dev"
+fi
+
+# A project that has to prepare a fresh worktree before work starts — seed a
+# build cache, install dependencies — does it here, in the dev pane, so the user
+# can watch it run. The agent starts only after it finishes: a prepare step that
+# is still running holds the shell, and the agent launch would wait behind it
+# where the pid check below cannot find it. A failed prepare step does not stop
+# the spawn, because the stream can still do the work without it, more slowly.
+prepare="(none)"
+if [ -n "$HERDR_WS_PREPARE" ]; then
+  prepare_status_file="$(git -C "$tree" rev-parse --absolute-git-dir)/herdr-prepare.status" \
+    || die "could not find the git dir of $tree"
+  rm -f "$prepare_status_file"
+  herdr pane run "$dev" "( $HERDR_WS_PREPARE ); echo \$? > $(printf %q "$prepare_status_file")" >/dev/null \
+    || die "could not run the project's prepare step on $dev"
+  waited=0
+  until [ -s "$prepare_status_file" ]; do
+    [ "$waited" -lt "$HERDR_WS_PREPARE_TIMEOUT" ] \
+      || die "the project's prepare step did not finish within ${HERDR_WS_PREPARE_TIMEOUT}s; read $dev, and start the agent by hand once it is done"
+    sleep 2
+    waited=$((waited + 2))
+  done
+  prepare_exit=$(cat "$prepare_status_file")
+  if [ "$prepare_exit" = 0 ]; then
+    prepare="done in ${waited}s"
+  else
+    prepare="FAILED (exit $prepare_exit); read $dev. The stream started without it."
+  fi
 fi
 
 # Deliver project instructions before Codex starts and reads AGENTS.md. Freeze
@@ -327,6 +357,7 @@ kind       $kind
 brief      $brief_via
 model      ${model:-(the kind default)}
 profile    ${config_dir:-(the orchestrator)}
+prepare    $prepare
 address    $address
 agent is   $status
 SUMMARY

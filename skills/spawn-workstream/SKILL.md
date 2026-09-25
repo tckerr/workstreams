@@ -170,6 +170,12 @@ The script checks `main` is current, creates the worktree and its workspace, nam
 the tab and panes, starts the agent and prompts it. It fails loudly rather than
 half-provisioning, so read its error instead of retrying by hand.
 
+When the project sets `HERDR_WS_PREPARE`, the script waits for that step before
+it starts the agent, and the step can take minutes (for example, a build cache
+that has gone stale). Run the script with your longest command timeout. A
+`prepare` line that says `FAILED` is worth one sentence to the user: the stream
+started, but without what the step prepares.
+
 Print its summary and say whether the agent is working or waiting. That is the
 whole report. Two or three lines.
 
