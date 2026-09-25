@@ -287,8 +287,24 @@ fi
 
 opening="$brief_prefix$opening"
 
-herdr agent prompt "$agent" "$opening" >/dev/null \
-  || die "the agent started but did not accept the prompt; prompt $agent by hand"
+# A freshly started agent can report ready and still drop a prompt: the text is
+# lost, or it lands in the input box and Enter never registers. Either way the
+# stream sits idle while the summary says it is working, so confirm the turn
+# began, and recover once before giving up.
+began() {
+  herdr agent wait "$agent" --until working --until blocked --until done \
+    --timeout 20000 >/dev/null 2>&1
+}
+if ! herdr agent prompt "$agent" "$opening" --wait --until working --until blocked \
+  --until done --timeout 20000 >/dev/null 2>&1; then
+  if herdr agent read "$agent" --source visible --lines 80 2>/dev/null \
+    | grep -qE 'Your worktree is|\[Pasted text'; then
+    herdr agent send-keys "$agent" Enter >/dev/null 2>&1 || true
+  else
+    herdr agent prompt "$agent" "$opening" >/dev/null 2>&1 || true
+  fi
+  began || die "the agent started but did not begin on its opening prompt; read $dev and prompt $agent by hand"
+fi
 
 sock=""
 [ -n "$pid" ] && [ -S "/tmp/cc-socks/$pid.sock" ] && sock="uds:/tmp/cc-socks/$pid.sock"
