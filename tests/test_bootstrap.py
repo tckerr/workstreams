@@ -35,7 +35,18 @@ elif a[:2] == ["pane", "process-info"]:
     kind = json.loads(pathlib.Path(os.environ["TEST_AT_START"]).read_text())["kind"]
     result = {"process_info": {"foreground_processes": [{"argv0": kind, "pid": 999999999}]}}
 elif a[:2] == ["agent", "prompt"]:
+    stall = os.environ.get("TEST_STALL")
+    stalled = pathlib.Path(os.environ["TEST_PROMPT"] + ".stalled")
+    if stall and not stalled.exists():
+        stalled.touch()
+        if stall == "typed":
+            pathlib.Path(os.environ["TEST_PROMPT"]).write_text(a[3])
+        sys.exit(1)
     pathlib.Path(os.environ["TEST_PROMPT"]).write_text(a[3])
+elif a[:2] == ["agent", "read"]:
+    if os.environ.get("TEST_STALL") == "typed":
+        print("> Your worktree is " + str(tree))
+    sys.exit(0)
 print(json.dumps({"result": result}))
 '''
 
@@ -83,8 +94,10 @@ class BootstrapTest(unittest.TestCase):
         return subprocess.run(["git", *args], env=self.env, check=True,
                               capture_output=True, text=True).stdout
 
-    def bootstrap(self, kind, with_socket=True, task="Implement the requested fix."):
+    def bootstrap(self, kind, with_socket=True, task="Implement the requested fix.", stall=None):
         env = {**self.env, "HERDR_WS_KIND": kind}
+        if stall:
+            env["TEST_STALL"] = stall
         if with_socket:
             env["CLAUDE_CODE_MESSAGING_SOCKET"] = "/tmp/test-orchestrator.sock"
             env["CLAUDE_CODE_MESSAGING_TOKEN"] = "test-private-token"
@@ -158,6 +171,29 @@ class BootstrapTest(unittest.TestCase):
                                   capture_output=True, text=True, check=True).stdout.strip()
         self.assertIn(f"yazi --client-id {expected} ", launch)
         self.assertIn(str(self.tree), launch)
+
+    def calls(self):
+        return [json.loads(line) for line in (self.directory / "calls.jsonl").read_text().splitlines()]
+
+    def test_opening_prompt_waits_for_the_turn_to_begin(self):
+        self.bootstrap("claude")
+        prompt = next(call for call in self.calls() if call[:2] == ["agent", "prompt"])
+        self.assertIn("--wait", prompt)
+        self.assertIn("working", prompt)
+
+    def test_prompt_left_in_the_input_is_submitted_with_enter(self):
+        _, prompt, _ = self.bootstrap("claude", stall="typed")
+        calls = self.calls()
+        self.assertIn(["agent", "send-keys", "test-stream", "Enter"], calls)
+        self.assertEqual(sum(call[:2] == ["agent", "prompt"] for call in calls), 1)
+        self.assertIn("Your task: Implement the requested fix.", prompt)
+
+    def test_lost_prompt_is_sent_again(self):
+        _, prompt, _ = self.bootstrap("claude", stall="lost")
+        calls = self.calls()
+        self.assertFalse(any(call[:2] == ["agent", "send-keys"] for call in calls))
+        self.assertEqual(sum(call[:2] == ["agent", "prompt"] for call in calls), 2)
+        self.assertIn("Your task: Implement the requested fix.", prompt)
 
 
 if __name__ == "__main__":
