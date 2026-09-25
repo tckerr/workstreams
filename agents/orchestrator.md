@@ -112,6 +112,12 @@ each in the user's terms, not the variable's:
   lost race fails the spawn instead of handing the user a stream whose test
   failures are really the wrong toolchain. Both empty means the pane is used as
   the machine leaves it.
+- **prepare step** (`HERDR_WS_PREPARE`, `HERDR_WS_PREPARE_TIMEOUT`) — a command
+  that readies a fresh worktree before the agent starts, such as seeding a build
+  cache so every stream does not compile the same dependencies. It runs in the
+  dev pane where the user can watch it, and bootstrap waits for it. A failure is
+  reported as `prepare` in the spawn summary and the stream still starts. Empty
+  means no prepare step.
 
 `.herdr/implementer.md` — the implementer's instructions for this repo, which the
 shell config cannot hold: how to **build**, how to **test**, how to **keep the

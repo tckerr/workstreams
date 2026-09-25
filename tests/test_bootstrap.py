@@ -27,9 +27,13 @@ if a[:2] == ["worktree", "create"]:
               "root_pane": {"pane_id": "w18:p1"}, "worktree": {"path": str(tree)}}
 elif a[:2] == ["tab", "create"]:
     result = {"root_pane": {"pane_id": "w18:p2"}}
+elif a[:3] == ["pane", "run", "w18:p1"]:
+    subprocess.Popen(["bash", "-c", a[3]], cwd=tree, start_new_session=True,
+                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 elif a[:2] == ["agent", "start"]:
     pathlib.Path(os.environ["TEST_AT_START"]).write_text(json.dumps({
         "brief": (tree / "AGENTS.md").read_text() if (tree / "AGENTS.md").exists() else None,
+        "prepared": (tree / "prepared").exists(),
         "kind": option("--kind")}))
 elif a[:2] == ["pane", "process-info"]:
     kind = json.loads(pathlib.Path(os.environ["TEST_AT_START"]).read_text())["kind"]
@@ -94,15 +98,19 @@ class BootstrapTest(unittest.TestCase):
         return subprocess.run(["git", *args], env=self.env, check=True,
                               capture_output=True, text=True).stdout
 
-    def bootstrap(self, kind, with_socket=True, task="Implement the requested fix.", stall=None):
-        env = {**self.env, "HERDR_WS_KIND": kind}
+    def run_bootstrap(self, kind, with_socket=True, task="Implement the requested fix.",
+                      stall=None, extra_env=None):
+        env = {**self.env, "HERDR_WS_KIND": kind, **(extra_env or {})}
         if stall:
             env["TEST_STALL"] = stall
         if with_socket:
             env["CLAUDE_CODE_MESSAGING_SOCKET"] = "/tmp/test-orchestrator.sock"
             env["CLAUDE_CODE_MESSAGING_TOKEN"] = "test-private-token"
-        result = subprocess.run(["bash", str(BOOTSTRAP), "test-stream", task],
-                                cwd=self.repo, env=env, capture_output=True, text=True, timeout=20)
+        return subprocess.run(["bash", str(BOOTSTRAP), "test-stream", task],
+                              cwd=self.repo, env=env, capture_output=True, text=True, timeout=20)
+
+    def bootstrap(self, kind, **options):
+        result = self.run_bootstrap(kind, **options)
         self.assertEqual(result.returncode, 0, result.stderr)
         prompt = (self.directory / "prompt.txt").read_text()
         at_start = json.loads((self.directory / "at-start.json").read_text())
@@ -194,6 +202,29 @@ class BootstrapTest(unittest.TestCase):
         self.assertFalse(any(call[:2] == ["agent", "send-keys"] for call in calls))
         self.assertEqual(sum(call[:2] == ["agent", "prompt"] for call in calls), 2)
         self.assertIn("Your task: Implement the requested fix.", prompt)
+
+    def test_no_prepare_step_by_default(self):
+        result, _, at_start = self.bootstrap("claude")
+        self.assertFalse(at_start["prepared"])
+        self.assertIn("prepare    (none)", result.stdout)
+
+    def test_agent_starts_only_after_the_prepare_step_finishes(self):
+        result, _, at_start = self.bootstrap(
+            "claude", extra_env={"HERDR_WS_PREPARE": "sleep 3; touch prepared"})
+        self.assertTrue(at_start["prepared"])
+        self.assertRegex(result.stdout, r"prepare    done in \d+s")
+
+    def test_failed_prepare_step_warns_and_still_starts_the_agent(self):
+        result, prompt, _ = self.bootstrap("claude", extra_env={"HERDR_WS_PREPARE": "exit 3"})
+        self.assertIn("prepare    FAILED (exit 3); read w18:p1", result.stdout)
+        self.assertIn("Your task: Implement the requested fix.", prompt)
+
+    def test_prepare_step_that_overruns_its_timeout_fails_the_spawn(self):
+        result = self.run_bootstrap("claude", extra_env={
+            "HERDR_WS_PREPARE": "sleep 30", "HERDR_WS_PREPARE_TIMEOUT": "2"})
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("did not finish within 2s", result.stderr)
+        self.assertFalse(any(call[:2] == ["agent", "start"] for call in self.calls()))
 
 
 if __name__ == "__main__":
