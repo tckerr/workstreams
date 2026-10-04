@@ -69,19 +69,38 @@ fi
 : "${HERDR_WS_PREPARE_TIMEOUT:=3600}"
 
 branch="$slug"
+# The base the worktree is cut from and the stream's PR targets. Defaults to
+# main; a shared feature-branch effort overrides it per spawn with the trunk
+# branch, so the stream branches from and merges back into that trunk, not main.
+base=${HERDR_WS_BASE:-main}
+[[ $base =~ ^[A-Za-z0-9][A-Za-z0-9._/-]*$ ]] \
+  || die "HERDR_WS_BASE must be a valid branch name: got '$base'"
 label="${slug//-/ }"
 # herdr caps agent names at 32 characters.
 agent="${slug:0:32}"
 
-# A worktree cut from a stale main carries other people's commits into the PR.
+# A worktree cut from a stale base carries other people's commits into the PR;
+# on a shared feature-branch trunk it would also miss a sibling stream that has
+# already landed there. Bring the base current with origin before cutting from
+# it. If origin has the base but this checkout does not (an inherited effort, or
+# a trunk a different session pushed), create the local branch from origin so the
+# cut has something to resolve. With no origin copy — a purely local base, or the
+# default main before its first push — leave it and let the cut use what is here.
 git -C "$repo" fetch origin --quiet
-if [ "$(git -C "$repo" rev-parse main)" != "$(git -C "$repo" rev-parse origin/main)" ]; then
-  if [ "$(git -C "$repo" symbolic-ref --quiet --short HEAD)" = main ]; then
-    git -C "$repo" merge --ff-only origin/main --quiet \
-      || die "main has diverged from origin/main; reconcile it before branching"
+if git -C "$repo" rev-parse --verify --quiet "refs/remotes/origin/$base" >/dev/null; then
+  if git -C "$repo" rev-parse --verify --quiet "refs/heads/$base" >/dev/null; then
+    if [ "$(git -C "$repo" rev-parse "$base")" != "$(git -C "$repo" rev-parse "origin/$base")" ]; then
+      if [ "$(git -C "$repo" symbolic-ref --quiet --short HEAD)" = "$base" ]; then
+        git -C "$repo" merge --ff-only "origin/$base" --quiet \
+          || die "$base has diverged from origin/$base; reconcile it before branching"
+      else
+        git -C "$repo" fetch origin "$base:$base" --quiet \
+          || die "$base has diverged from origin/$base; reconcile it before branching"
+      fi
+    fi
   else
-    git -C "$repo" fetch origin main:main --quiet \
-      || die "main has diverged from origin/main; reconcile it before branching"
+    git -C "$repo" branch "$base" "origin/$base" --quiet \
+      || die "could not create local $base from origin/$base"
   fi
 fi
 
@@ -91,7 +110,7 @@ git -C "$repo" show-ref --quiet --verify "refs/heads/$branch" \
 field() { python3 -c 'import json,sys;d=json.load(sys.stdin)["result"];print(eval("d"+sys.argv[1]))' "$1"; }
 
 created=$(herdr worktree create --cwd "$repo" \
-  --branch "$branch" --base main --label "$label" --no-focus) \
+  --branch "$branch" --base "$base" --label "$label" --no-focus) \
   || die "herdr worktree create failed"
 
 workspace=$(printf '%s' "$created" | field '["workspace"]["workspace_id"]')
@@ -278,6 +297,20 @@ working-tree changes and the branch's commits. Same as above: reuse it."
 A bare Shell tab, pane $shell, is there for the user to poke around in. Leave
 it for them; do your own work in the dev pane."
 
+# When the base is not main the stream is part of a shared feature-branch effort:
+# it branches from a per-effort trunk and its PR goes back there, not to main.
+# The mechanics live here; what to run and how the PR lands are the project's
+# feature-branch definition of done, which this flags the stream to follow.
+if [ "$base" != main ]; then
+  priming="$priming
+This stream is part of a shared feature-branch effort. It is cut from $base, a
+per-effort trunk, not main, and its pull request targets $base as well. The
+effort defers the expensive per-stream build, test, and precommit hooks to a
+single integration pass on the combined trunk, so follow your project's
+feature-branch definition of done for exactly what to run and how to land your PR
+into $base."
+fi
+
 # herdr cannot address the orchestrator: it names only the agents it started,
 # and the orchestrator is a plain pane. The cross-session socket reaches it.
 if [ "$kind" = codex ]; then
@@ -343,9 +376,13 @@ if [ "$kind" = codex ]; then
   address="herdr agent prompt $agent <message>"
 fi
 
+base_summary="$base"
+if [ "$base" != main ]; then base_summary="$base (feature-branch effort)"; fi
+
 cat <<SUMMARY
 workspace  $workspace
 branch     $branch
+base       $base_summary
 worktree   $tree
 dev pane   $dev "$desc" (agent: $agent)
 artifact   ${second:-(none)}${second:+ ($HERDR_WS_SECOND_PANE_LABEL)}

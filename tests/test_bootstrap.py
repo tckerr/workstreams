@@ -160,11 +160,41 @@ class BootstrapTest(unittest.TestCase):
                       "done, as your brief describes.", prompt)
         self.assertNotIn("report.py", prompt)
         self.assertIn("address    (not resolved; find it with ListAgents)", result.stdout)
+        # The default cut is from main, with none of the feature-branch priming.
+        self.assertNotIn("feature-branch effort", prompt)
+        self.assertIn("base       main", result.stdout)
+        create = next(c for c in self.calls() if c[:2] == ["worktree", "create"])
+        self.assertEqual(create[create.index("--base") + 1], "main")
         calls = [json.loads(line) for line in (self.directory / "calls.jsonl").read_text().splitlines()]
         start = next(call for call in calls if call[:2] == ["agent", "start"])
         self.assertEqual(start[start.index("--") + 1:],
                          ["--dangerously-skip-permissions", "--effort", "high", "--agent",
                           "workstreams:implementer"])
+
+    def test_feature_branch_base_cuts_from_trunk_and_primes_pr_target(self):
+        # The orchestrator creates the per-effort trunk from main and pushes it; a
+        # stream spawned into the effort with HERDR_WS_BASE is cut from the trunk,
+        # not main, and its PR targets the trunk. Give the trunk a commit main does
+        # not have, so the cut carrying it proves the base took effect.
+        self.run_git("-C", str(self.repo), "checkout", "-q", "-b", "trunk-effort")
+        (self.repo / "on-trunk").write_text("x\n")
+        self.run_git("-C", str(self.repo), "add", "on-trunk")
+        self.run_git("-C", str(self.repo), "commit", "-qm", "On the trunk only")
+        self.run_git("-C", str(self.repo), "push", "-q", "origin", "trunk-effort")
+        self.run_git("-C", str(self.repo), "checkout", "-q", "main")
+        result, prompt, _ = self.bootstrap("claude", extra_env={"HERDR_WS_BASE": "trunk-effort"})
+        create = next(c for c in self.calls() if c[:2] == ["worktree", "create"])
+        self.assertEqual(create[create.index("--base") + 1], "trunk-effort")
+        self.assertTrue((self.tree / "on-trunk").exists())
+        self.assertIn("shared feature-branch effort", prompt)
+        self.assertIn("targets trunk-effort", prompt)
+        self.assertIn("base       trunk-effort (feature-branch effort)", result.stdout)
+
+    def test_invalid_feature_branch_base_is_rejected(self):
+        result = self.run_bootstrap("claude", extra_env={"HERDR_WS_BASE": "bad base!"})
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("must be a valid branch name", result.stderr)
+        self.assertFalse((self.directory / "calls.jsonl").exists())
 
     def test_files_tab_yazi_uses_the_client_id_browse_derives(self):
         # The Files-tab yazi must launch with the same --client-id browse.sh
