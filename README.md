@@ -49,9 +49,11 @@ rarely write them by hand.
 | `HERDR_WS_PREPARE` | Command run in the dev pane after the pane init, from the worktree root, to prepare a fresh worktree (for example, seed a build cache). The agent starts after it finishes. A failure is reported in the spawn summary and does not stop the spawn. Empty skips it. |
 | `HERDR_WS_PREPARE_TIMEOUT` | Seconds bootstrap waits for the prepare step before it stops the spawn. Default 3600. |
 
-Four keys override the defaults for a single spawn, on the command line:
-`HERDR_WS_DESC` (labels the dev pane), `HERDR_WS_KIND`, `HERDR_WS_MODEL`, and
-`HERDR_WS_CONFIG_DIR`.
+Five keys override the defaults for a single spawn, on the command line:
+`HERDR_WS_DESC` (labels the dev pane), `HERDR_WS_KIND`, `HERDR_WS_MODEL`,
+`HERDR_WS_CONFIG_DIR`, and `HERDR_WS_BASE` (the branch the worktree is cut from
+and the stream's PR targets; defaults to main, overridden for a shared
+feature-branch effort — see below).
 
 `.herdr/implementer.md` holds the implementer's instructions for this repo, the
 part a shell file cannot carry: how to build, how to test, how to keep the
@@ -99,6 +101,25 @@ own error and leave the fault there for every stream after it.
 A stream's slug becomes the branch name, and its spaced form the workspace label.
 There are no configurable prefixes. A repo that wants a naming convention
 expresses it in its own tooling, not here.
+
+## Shared feature-branch mode
+
+On a big project the per-stream build, test, and precommit hooks can be expensive
+enough that a field of streams running them at once saturates the machine. Shared
+feature-branch mode defers that gate. The streams of one effort share a per-effort
+trunk branch: the orchestrator cuts the trunk from main and pushes it, each stream
+is spawned with `HERDR_WS_BASE=<trunk>` so it branches from and PRs into the trunk
+with the heavy hooks skipped, and the full suite runs just once — on the combined
+trunk, in a final integration stream that then opens the trunk-to-main PR. Streams
+self-merge into the trunk and are torn down as usual, except the orchestrator pulls
+the trunk current rather than main until the effort ends.
+
+Git is the roster: open PRs against the trunk are the streams still in flight,
+merged ones are the streams that landed, so there is no separate state to track.
+The mode asks only that the project's `.herdr/implementer.md` carry a feature-branch
+definition of done — one that skips the per-stream gate and lands the PR on the
+trunk — alongside its normal one. The full lifecycle the orchestrator drives is in
+the orchestrator brief under "Shared feature-branch mode".
 
 ## Telegram
 

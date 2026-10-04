@@ -155,6 +155,25 @@ For replies to Codex, use `herdr agent prompt <agent> <message>`, as printed in
 the spawn summary's `address` line. Codex has no Claude inbox for `ListAgents`
 to discover.
 
+## Spawning into a shared feature-branch effort
+
+By default a stream is cut from main and PRs against main. `HERDR_WS_BASE`
+overrides the base per spawn with a per-effort trunk branch, so the stream
+branches from that trunk and is primed to PR back into it rather than main:
+
+```bash
+HERDR_WS_BASE=<effort> HERDR_WS_DESC="..." \
+  "${CLAUDE_PLUGIN_ROOT}/skills/spawn-workstream/bootstrap.sh" <slug> <task>
+```
+
+This is one spawn of a larger flow — creating and owning the trunk, tracking which
+streams are in, the final integration pass, and merging the trunk to main all live
+in the orchestrator brief under "Shared feature-branch mode". Use the override only
+as part of that flow; the trunk must already exist on origin, and the project must
+carry a feature-branch definition of done. Bootstrap brings the trunk current with
+origin before it cuts, so a stream started after a sibling has landed begins from
+the sibling's work.
+
 With no task the agent comes up primed and idle, having read its instructions and
 readied its store, and waits for the user to say what to build. With a task it
 starts immediately.

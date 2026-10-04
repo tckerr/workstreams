@@ -49,3 +49,35 @@ and report the branch name so the user can open the PR by hand.
 When the PR is open (or the branch is pushed and the PR is blocked on auth), report
 back to the orchestrator with the branch name and the PR URL. Leave your worktree
 in place; the user has not merged yet, so it is not ready for teardown.
+
+## Feature-branch definition of done
+
+This is the definition of done when your opening says you are part of a shared
+feature-branch effort — when your base is a per-effort trunk rather than main. It
+replaces the one above for the duration of that effort. Everything else — the
+house rules, the author identity, the origin alias — is unchanged.
+
+Get the suite green locally as always, commit on your branch, and push it. Then
+open a PR with `gh pr create --base <trunk>` targeting the trunk your opening
+named, not main, and merge it yourself once it is clean — the user's review is
+deferred to the single trunk-to-main PR at the end of the effort, so a per-stream
+wait on them would defeat the mode. Resolve conflicts against the trunk, which may
+have moved as sibling streams landed. Then report `merged` to the orchestrator as
+usual: the merge landed on the trunk and your tree is clean, so teardown is safe.
+
+The point of the mode is to run the expensive gate once, on the combined trunk,
+rather than once per stream. This project's suite is cheap, so keep running it, but
+a project whose gate is the reason it adopted the mode skips the per-stream run
+here and relies on the integration pass below.
+
+## Integration definition of done
+
+This is the definition of done when your opening says you are the integration pass
+for an effort. You are cut from the trunk, and your job is the one expensive run
+the mode exists to make once: run `python3 -m unittest discover -s tests -v` on the
+combined trunk, fix any integration failures and land them on the trunk (commit,
+push, and merge into the trunk as a contributor stream would), then open the
+trunk-to-main PR with `gh pr create --base main --head <trunk>`. Do NOT merge it —
+the user reviews and merges this one, as in the normal flow. Report `ready` with
+the PR URL when it is open, and `merged` only after the user has merged it and the
+trunk has reached main.

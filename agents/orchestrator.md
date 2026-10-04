@@ -148,6 +148,122 @@ unless they explicitly ask to switch to the new pane, tab, or workspace.
 `/workstreams:spawn-workstream <task>` carries the procedure. Follow it rather than
 reproducing it here.
 
+## Shared feature-branch mode
+
+By default each stream branches from main and opens its PR against main. On a big
+project where the build, test, and precommit hooks are expensive, that is costly
+in a way that compounds: every stream runs the full gate on every change, and a
+field of streams running it at once saturates the machine. Shared feature-branch
+mode defers that gate. The streams of one effort share a per-effort trunk branch;
+each PRs into the trunk with the heavy hooks skipped, and the full suite runs just
+once, on the combined trunk, before it reaches main. Use it when the user asks for
+it, or when the per-stream gate is the bottleneck on a multi-stream effort. A
+lone stream gains nothing from it.
+
+The mode is the same spawn and teardown you already do, with the base changed and
+one extra stream at the end. The two decisions that are not yours stay not yours:
+conflicts between streams are still theirs to resolve (now against the trunk), and
+what each stream actually runs and how its PR lands is still the project's
+definition of done. The mode only requires the project's `.herdr/implementer.md`
+to carry a feature-branch definition of done — one that skips the expensive
+per-stream gate, opens the PR into the trunk, and merges it there — alongside its
+normal one. If the repo has no such section, that is a setup gap: raise it with
+the user and have it written before spawning the effort, the same as any other
+missing spec. The stream's priming flags that it is in the effort; the steps come
+from that section.
+
+### Start the effort: create the trunk
+
+You own the trunk, because you are the one session that outlives every stream in
+the effort. Pick an effort slug the same way you pick a stream slug — two to four
+words, lowercase, hyphenated — then cut the trunk from current main and push it,
+so stream PRs have a base on origin to target:
+
+```bash
+git -C <main checkout> fetch origin --quiet
+git -C <main checkout> merge --ff-only origin/main --quiet
+git -C <main checkout> branch <effort> main
+git -C <main checkout> push -u origin <effort>
+```
+
+There is no prefix convention, here or on the stream branches; the effort slug is
+the branch name. Keep the slug — it is the base every stream in the effort is cut
+from, and the head of the final PR.
+
+### Spawn streams into the effort
+
+Spawn exactly as normal, with one addition: `HERDR_WS_BASE=<effort>`, so the
+worktree is cut from the trunk and the stream is primed to PR back into it rather
+than main. Everything else — the description, profile, model, kind — is unchanged:
+
+```bash
+HERDR_WS_BASE=<effort> HERDR_WS_DESC="..." \
+  "${CLAUDE_PLUGIN_ROOT}/skills/spawn-workstream/bootstrap.sh" <slug> <task>
+```
+
+The summary's `base` line shows the trunk and marks it a feature-branch effort, so
+you can see at a glance which spawns belong to one. Bootstrap brings the trunk
+current with origin before each cut, so a stream started after a sibling has
+landed begins from the sibling's work.
+
+### Know when every stream is in
+
+Git is the roster; you do not track it yourself. Open PRs against the trunk are
+the streams still in flight, merged ones are the streams that landed:
+
+```bash
+gh pr list --base <effort> --state all
+```
+
+The effort is ready to integrate when every stream you spawned has merged into the
+trunk and nothing is open against it. Deciding the effort is complete — that these
+were all the streams — is the user's call, not an inference from an empty PR list;
+confirm it with them before you integrate, since a stream they still mean to spawn
+would be integrated around.
+
+### Teardown and pulling, inside an effort
+
+When a stream reports its PR merged, tear it down exactly as in "When a stream
+reports done" — the merge it reports is into the trunk, and you verify it against
+the PR the same way. The one difference is the pull in "Pull main whenever a
+stream's PR lands": inside an effort the merge landed on the trunk, not main, so
+pull the trunk current instead and leave main alone until the effort ends:
+
+```bash
+git -C <main checkout> fetch origin --quiet
+git -C <main checkout> fetch origin <effort>:<effort> --quiet
+```
+
+### Integrate and merge to main
+
+Once the user confirms every stream is in, run the expensive gate once. You do not
+run it yourself — spawn one more stream into the effort for it, cut from the trunk
+like the others:
+
+```bash
+HERDR_WS_BASE=<effort> HERDR_WS_DESC="integration pass" \
+  "${CLAUDE_PLUGIN_ROOT}/skills/spawn-workstream/bootstrap.sh" <effort>-integration \
+  "You are the integration pass for the <effort> feature-branch effort. Run the \
+project's full test suite on the combined trunk, fix any integration failures and \
+land them on <effort>, then open a pull request from <effort> into main for the \
+user to review and merge. Follow your project's integration definition of done."
+```
+
+It behaves like any stream: it reports `ready` when the trunk-to-main PR is open,
+and `merged` only after the user reviews and merges that PR. Treat its `merged`
+report as the end of the effort. Tear it down as usual, then delete the trunk and
+bring main current — the one time in the whole effort that main moves:
+
+```bash
+git -C <main checkout> fetch origin --quiet
+git -C <main checkout> merge --ff-only origin/main --quiet
+git push origin --delete <effort>
+git -C <main checkout> branch -D <effort>
+```
+
+Say what landed on main, as you would for any merge. The effort is then over, and
+the next worktree is cut from main again unless you start another effort.
+
 ## Telegram mode
 
 The optional `scripts/telegram_bridge.py` service connects a paired Telegram
@@ -325,6 +441,10 @@ conflict a fresh cut would surface early.
 
 Say what the pull brought in beyond the stream's own work. That is the one part
 the user cannot see from the merge they just approved.
+
+Inside a shared feature-branch effort this changes: the stream merged into the
+trunk, not main, so you pull the trunk and leave main until the effort ends. See
+"Shared feature-branch mode".
 
 ## Conflicts are not yours
 

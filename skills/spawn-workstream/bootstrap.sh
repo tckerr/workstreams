@@ -298,17 +298,19 @@ A bare Shell tab, pane $shell, is there for the user to poke around in. Leave
 it for them; do your own work in the dev pane."
 
 # When the base is not main the stream is part of a shared feature-branch effort:
-# it branches from a per-effort trunk and its PR goes back there, not to main.
-# The mechanics live here; what to run and how the PR lands are the project's
-# feature-branch definition of done, which this flags the stream to follow.
+# it branches from a per-effort trunk instead of main. The mechanics live here;
+# what to run and where the PR lands are the project's feature-branch definition
+# of done, which this flags the stream to follow. The PR target is left to that
+# DoD and the task on purpose — a contributor stream targets the trunk, while an
+# integration stream targets main — so it is not asserted here.
 if [ "$base" != main ]; then
   priming="$priming
-This stream is part of a shared feature-branch effort. It is cut from $base, a
-per-effort trunk, not main, and its pull request targets $base as well. The
-effort defers the expensive per-stream build, test, and precommit hooks to a
-single integration pass on the combined trunk, so follow your project's
-feature-branch definition of done for exactly what to run and how to land your PR
-into $base."
+This stream is part of a shared feature-branch effort: it is cut from $base, a
+per-effort trunk, not main. The effort defers the expensive per-stream build,
+test, and precommit hooks to a single integration pass on the combined trunk, so
+follow your project's feature-branch definition of done — and any role your task
+names, such as the integration pass — for exactly what to run and where your PR
+goes. Resolve conflicts against $base, which may move as sibling streams land."
 fi
 
 # herdr cannot address the orchestrator: it names only the agents it started,

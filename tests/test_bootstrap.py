@@ -187,7 +187,7 @@ class BootstrapTest(unittest.TestCase):
         self.assertEqual(create[create.index("--base") + 1], "trunk-effort")
         self.assertTrue((self.tree / "on-trunk").exists())
         self.assertIn("shared feature-branch effort", prompt)
-        self.assertIn("targets trunk-effort", prompt)
+        self.assertIn("cut from trunk-effort", prompt)
         self.assertIn("base       trunk-effort (feature-branch effort)", result.stdout)
 
     def test_invalid_feature_branch_base_is_rejected(self):

@@ -198,6 +198,15 @@ nothing and a merge conflict at that point is pure noise. Leave it where the
 merge left it. The one step the project does not own is telling the orchestrator,
 below, because the orchestrator is this plugin's, not the project's.
 
+If your opening says you are part of a shared feature-branch effort, your base is
+that per-effort trunk, not main, and conflicts you resolve are against it. The
+effort defers the expensive per-stream build and test hooks to a single
+integration pass on the combined trunk, so follow your project's feature-branch
+definition of done — which skips that gate — rather than its normal one. Where your
+PR goes comes from that definition of done and your task: a contributor stream
+targets the trunk, while an integration stream runs the gate once and targets main.
+Everything else, including reporting done below, is unchanged.
+
 ## Reporting done
 
 Your first message names the orchestrator, as `uds:/path/to/socket`. Once your
