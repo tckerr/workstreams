@@ -1,7 +1,7 @@
 # workstreams
 
 Run several Claude sessions on one repo at once, each in its own git worktree, so
-they never trip over each other's runs. One session, the **orchestrator**, starts
+they never trip over one another's runs. One session, the **orchestrator**, starts
 the streams and cleans them up. Each stream is an **implementer** working in
 isolation, reporting back when its branch lands.
 
