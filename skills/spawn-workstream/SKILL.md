@@ -20,8 +20,10 @@ fresh implementer, and stop. Configuring the project and tearing streams down
 later are separate jobs in the orchestrator brief. See "After the stream lands"
 at the end.
 
-A `claude --agent workstreams:orchestrator` session already holds the full role; this
-skill adds the spawn procedure it does not carry inline.
+A `claude --agent workstreams:orchestrator` session already holds the full role;
+Codex loads it through `skills/orchestrate-workstreams/SKILL.md`. This skill adds
+the spawn procedure. In Codex, replace `${CLAUDE_PLUGIN_ROOT}` in shell examples
+with the absolute plugin root and pass the session routing values from that skill.
 
 ## Prerequisite
 
@@ -140,7 +142,12 @@ the tracked tree. The opening prompt gives the exact command for acknowledging
 the task and sending later reports. The helper snapshots your messaging socket
 and optional auth token, so a different profile cannot redirect its reports.
 It sends the JSON-lines frame and permission-mode envelope Claude's inbox
-expects. No watcher or extra process is needed. Its last report is saved beside
+expects when the orchestrator is Claude. When the orchestrator is Codex, it
+snapshots the thread UUID, `CODEX_HOME`, CLI path, and optional remote server and
+auth token, then sends through `codex queue --thread ... --message ... --resume`.
+Claude workers also receive the helper command for a Codex orchestrator; their
+opening prompt and brief select it instead of `SendMessage`.
+No watcher or extra process is needed. Its last report is saved beside
 the helper if the socket goes away; credentials stay in the private config.
 
 The `started`, `ready`, and `blocked` reports keep the stream open. Only `merged`
@@ -148,10 +155,21 @@ claims teardown is safe, and the orchestrator still verifies it. A successful
 send has no delivery receipt: an explicit inbound hold/refuse policy can still
 prevent delivery. The helper attests the sender's actual launch mode; it does
 not change that policy. See `scripts/report_to_orchestrator.py` for the protocol.
-If your session has no `CLAUDE_CODE_MESSAGING_SOCKET`, priming tells the stream
-to show reports in its dev pane instead.
+The helper treats a Codex queue warning as uncertain delivery even when the CLI
+exits successfully, since resume failure is reported that way. It never claims
+the orchestrator processed a queued report.
 
-For replies to Codex, use `herdr agent prompt <agent> <message>`, as printed in
+Session routing is separate from worker kind and profile. Set
+`HERDR_WS_ORCHESTRATOR_KIND` to `claude` or `codex` to select it explicitly.
+Codex uses `HERDR_WS_ORCHESTRATOR_THREAD` (or `CODEX_THREAD_ID`), with optional
+`HERDR_WS_ORCHESTRATOR_REMOTE` and `HERDR_WS_ORCHESTRATOR_AUTH_TOKEN_ENV`.
+Without an explicit kind, a Claude messaging socket wins over a Codex thread.
+An explicitly selected destination must be complete; bootstrap validates it
+before creating the worktree. With neither a Claude socket nor a Codex thread,
+priming tells a Codex stream to show reports in its dev pane instead.
+
+For replies from a Codex orchestrator to either worker kind, and for replies to
+Codex workers from Claude, use `herdr agent prompt <agent> <message>`, as printed in
 the spawn summary's `address` line. Codex has no Claude inbox for `ListAgents`
 to discover.
 

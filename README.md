@@ -1,7 +1,7 @@
 # workstreams
 
-Run several Claude sessions on one repo at once, each in its own git worktree, so
-they never trip over each other's runs. One session, the **orchestrator**, starts
+Run several Claude or Codex sessions on one repo at once, each in its own git
+worktree, so they never trip over each other's runs. One session, the **orchestrator**, starts
 the streams and cleans them up. Each stream is an **implementer** working in
 isolation, reporting back when its branch lands.
 
@@ -26,6 +26,48 @@ claude --agent workstreams:orchestrator
 You can also spawn from any session with `/workstreams:spawn-workstream <task>`,
 but a dedicated orchestrator session is what receives the done-reports and tears
 streams down.
+
+### Codex orchestrator
+
+Keep a checkout of this plugin and link its orchestrator skill into Codex's
+user skills directory, using your checkout's absolute path:
+
+```bash
+mkdir -p ~/.agents/skills
+ln -s /absolute/path/to/workstreams/skills/orchestrate-workstreams ~/.agents/skills/orchestrate-workstreams
+```
+
+In a new Codex conversation on the target repository, invoke
+`$orchestrate-workstreams`. It loads the shared orchestrator role and that
+repository's `.herdr/` specifications. It does not install a repository-wide
+`AGENTS.md` or make worker conversations into orchestrators.
+
+Codex must have a running app-server hosting the orchestrator thread and a CLI
+with `codex queue --thread <uuid> --message <text> --resume` support. Workers can
+be Claude or Codex. Bootstrap captures the orchestrator's thread UUID and
+`CODEX_HOME` before the worker switches profiles. Reports queue into that
+thread; replies go through `herdr agent prompt`.
+
+Herdr groups worktree workspaces under the repository's primary workspace.
+Sidebar nesting describes that repository relationship, not the orchestrator
+receiving reports. Multiple orchestrators on one repository still bind their
+workers to distinct messaging destinations.
+
+Routing is session-specific. `HERDR_WS_ORCHESTRATOR_KIND=codex` explicitly
+selects Codex and `HERDR_WS_ORCHESTRATOR_THREAD` selects the thread UUID,
+defaulting to `CODEX_THREAD_ID`. Without an explicit kind, an available Claude
+messaging socket takes precedence, then a Codex thread; without either, reports
+stay in the worker's pane. Explicitly selecting an incomplete destination fails
+before provisioning a worktree. For a remote server, set
+`HERDR_WS_ORCHESTRATOR_REMOTE` and, if needed,
+`HERDR_WS_ORCHESTRATOR_AUTH_TOKEN_ENV` to the name of its token environment
+variable. Destination and credentials are snapshotted in the worker's private
+git directory, never in its tracked files or opening prompt.
+
+A successful queue command acknowledges queueing, not processing. Codex can
+exit successfully while warning that resume failed; the helper surfaces that
+as uncertain delivery and keeps a saved report. It never retries automatically.
+The existing Telegram bridge still targets a Claude orchestrator.
 
 ## What each repo supplies
 
@@ -73,10 +115,11 @@ and resets to `origin/main`; another does not. The implementer follows whatever
 the repo says, then sends the orchestrator the one message the repo does not own:
 that the merge landed and teardown is safe.
 
-Codex streams use a Python helper to send the orchestrator's framed socket
-messages. Bootstrap supplies the command and adapts the reporting brief; Claude
-streams continue to use `SendMessage`. Codex acknowledges the task with `started`,
-reports an open PR as `ready`, and sends `merged` only after the merge lands and
+Codex streams use a Python helper to send reports to either orchestrator kind.
+Claude streams use the same helper for a Codex orchestrator, and continue to
+use `SendMessage` for a Claude orchestrator. Bootstrap supplies the command and
+adapts the reporting instructions. Helper users acknowledge the task with `started`,
+report an open PR as `ready`, and send `merged` only after the merge lands and
 the worktree is clean. Reports before a merge keep the stream open for review.
 The helper and its private destination/auth config live in the per-worktree git
 directory, with the last report saved there as a fallback. See the spawn skill
@@ -111,6 +154,7 @@ the orchestrator, the phone commands, and delivery semantics.
 ## Layout
 
 - `agents/orchestrator.md`, `agents/implementer.md` — the two roles.
+- `skills/orchestrate-workstreams/` — the Codex entry point for the shared orchestrator role.
 - `skills/spawn-workstream/` — the spawn skill, its `bootstrap.sh`, and `resolve-agent.sh` (the testable agent-kind/model decision and Codex brief delivery).
 - `skills/self-compact/` — lets a session compact itself by sending `/compact` to its own herdr pane.
 - `.claude-plugin/plugin.json` — the plugin manifest.

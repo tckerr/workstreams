@@ -200,6 +200,17 @@ below, because the orchestrator is this plugin's, not the project's.
 
 ## Reporting done
 
+If your first message supplies a reporting shell command, use it instead of
+`SendMessage`. Acknowledge with `send started --message '...'`, send `ready`
+when a PR is open but not merged, and `blocked` when you need the orchestrator.
+Send `merged` only after the merge lands and the worktree is clean. Include the
+branch, PR URL, and summary. Use `--message-file` for multiline text. A queued
+report is not proof the orchestrator processed it. On an error, show the saved
+report path and error in your pane; do not retry automatically. Keep the stream
+open until the orchestrator verifies the merge and tears it down.
+
+Otherwise, use the Claude messaging path below.
+
 Your first message names the orchestrator, as `uds:/path/to/socket`. Once your
 project's definition of done is met and the merge has landed, send the
 orchestrator one message with `SendMessage`, using that address verbatim as `to`:
