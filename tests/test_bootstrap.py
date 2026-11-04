@@ -88,6 +88,7 @@ class BootstrapTest(unittest.TestCase):
         # the existing best-effort tabs, whose calls are captured by fake herdr.
         self.executable("yazi", "#!/bin/sh\nexit 0\n")
         self.executable("lazygit", "#!/bin/sh\nexit 0\n")
+        self.executable("codex", "#!/bin/sh\nexit 0\n")
 
     def executable(self, name, content):
         file = self.bin / name
@@ -154,7 +155,9 @@ class BootstrapTest(unittest.TestCase):
         self.assertNotIn("send started --message", prompt)
 
     def test_claude_retains_original_priming_and_launch(self):
-        result, prompt, at_start = self.bootstrap("claude")
+        result, prompt, at_start = self.bootstrap("claude", extra_env={
+            "CODEX_THREAD_ID": "11111111-2222-4333-8444-555555555555",
+        })
         self.assertIsNone(at_start["brief"])
         self.assertIn("The orchestrator is uds:/tmp/test-orchestrator.sock. Report there when you are\n"
                       "done, as your brief describes.", prompt)
@@ -165,6 +168,48 @@ class BootstrapTest(unittest.TestCase):
         self.assertEqual(start[start.index("--") + 1:],
                          ["--dangerously-skip-permissions", "--effort", "high", "--agent",
                           "workstreams:implementer"])
+
+    def test_claude_worker_reports_to_codex_with_helper_instead_of_socket(self):
+        thread = "11111111-2222-4333-8444-555555555555"
+        result, prompt, at_start = self.bootstrap("claude", extra_env={
+            "HERDR_WS_ORCHESTRATOR_KIND": "codex", "CODEX_THREAD_ID": thread,
+            "CODEX_HOME": str(self.directory / "orchestrator-profile"),
+        })
+        self.assertIsNone(at_start["brief"])
+        self.assertIn("send started --message", prompt)
+        self.assertIn("takes precedence", prompt)
+        self.assertNotIn("The orchestrator is uds:", prompt)
+        git_dir = Path(self.run_git("-C", str(self.tree), "rev-parse", "--absolute-git-dir").strip())
+        config = json.loads((git_dir / "herdr-report/report.json").read_text())
+        self.assertEqual(config["transport"], "codex")
+        self.assertEqual(config["sender_kind"], "claude")
+        self.assertEqual(config["thread"], thread)
+        self.assertEqual(config["codex_home"], str((self.directory / "orchestrator-profile").resolve()))
+        self.assertNotIn("test-private-token", prompt + result.stdout)
+        self.assertNotIn("token", config)
+        self.assertIn("address    herdr agent prompt test-stream <message>", result.stdout)
+        self.assertEqual(self.run_git("-C", str(self.tree), "status", "--porcelain"), "")
+
+    def test_codex_worker_automatically_binds_to_codex_parent_without_claude_socket(self):
+        thread = "11111111-2222-4333-8444-555555555555"
+        _, prompt, at_start = self.bootstrap("codex", with_socket=False, extra_env={
+            "CODEX_THREAD_ID": thread,
+        })
+        self.assertIn("## Reporting to the orchestrator", at_start["brief"])
+        self.assertIn("send started --message", prompt)
+        git_dir = Path(self.run_git("-C", str(self.tree), "rev-parse", "--absolute-git-dir").strip())
+        config = json.loads((git_dir / "herdr-report/report.json").read_text())
+        self.assertEqual(config["transport"], "codex")
+        self.assertEqual(config["sender_kind"], "codex")
+        self.assertEqual(config["thread"], thread)
+        self.assertEqual(config["codex_home"], str((self.directory / ".codex").resolve()))
+
+    def test_explicit_codex_destination_fails_before_any_provisioning_if_incomplete(self):
+        result = self.run_bootstrap("claude", extra_env={"HERDR_WS_ORCHESTRATOR_KIND": "codex"})
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("invalid orchestrator reporting destination", result.stderr)
+        self.assertFalse((self.directory / "calls.jsonl").exists())
+        self.assertFalse(self.tree.exists())
 
     def test_files_tab_yazi_uses_the_client_id_browse_derives(self):
         # The Files-tab yazi must launch with the same --client-id browse.sh

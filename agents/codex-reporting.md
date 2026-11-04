@@ -1,8 +1,8 @@
 ## Reporting to the orchestrator
 
 Your first message gives you a shell command for reporting to the orchestrator.
-Use that command for every report, including setup faults. It sends the framed
-message for you; Codex has no `SendMessage` tool. Do not write plain text to a
+Use that command for every report, including setup faults. It selects the
+orchestrator's transport for you. Do not write plain text to a
 `uds:` socket.
 
 Before starting the task, run the command with `send started --message '...'` to
@@ -23,7 +23,9 @@ artifact running and wait.
 Use `--message-file /path/to/report.txt` (or `--message-file -` for stdin) for
 multiline text or text containing shell metacharacters. The helper saves the last
 report in its private directory before sending. A successful exit means the
-socket write completed, not that the orchestrator has read or acted on it.
+socket write completed or the Codex report was queued, not that the orchestrator
+has read or acted on it. A Codex queue warning means resume or delivery is
+uncertain even if the queue command exited successfully.
 If the command is missing or fails, show the PR URL and summary in your dev pane,
 including the error and saved report path when available. Do not loop on retries;
 delivery may already have happened.

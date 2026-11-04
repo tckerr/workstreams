@@ -27,6 +27,10 @@ config="$repo/.herdr/workstreams.sh"
 # shellcheck disable=SC1090
 source "$config" || die "could not source $config"
 
+here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd) || die "could not locate the skill directory"
+report_destination=$(python3 "$here/../../scripts/report_to_orchestrator.py" destination) \
+  || die "invalid orchestrator reporting destination"
+
 # The stream reports to whoever spawns it: bootstrap bakes the spawning session's
 # CLAUDE_CODE_MESSAGING_SOCKET in as the orchestrator address. Run from an
 # orchestrator whose session lives in a different repo than the target, and every
@@ -39,7 +43,7 @@ repo_id() {  # canonical shared git dir, so worktrees of one repo compare equal
   gcd=$(git -C "$d" rev-parse --git-common-dir 2>/dev/null) || return 0
   ( cd "$d" && cd "$gcd" 2>/dev/null && pwd -P ) || return 0
 }
-if [ -n "${CLAUDE_CODE_MESSAGING_SOCKET:-}" ] && [ "${HERDR_WS_ALLOW_FOREIGN_ORCHESTRATOR:-}" != 1 ]; then
+if [ "$report_destination" = claude ] && [ "${HERDR_WS_ALLOW_FOREIGN_ORCHESTRATOR:-}" != 1 ]; then
   orch_pid=${CLAUDE_CODE_MESSAGING_SOCKET##*/}; orch_pid=${orch_pid%.sock}
   orch_cwd=""
   if [[ $orch_pid =~ ^[0-9]+$ ]]; then
@@ -156,7 +160,6 @@ shell=$(herdr tab create --workspace "$workspace" --cwd "$tree" --label Shell \
 
 # Resolve which agent this stream starts as — kind, model, and launch argv. The
 # decision lives in a sibling helper so it can be tested without herdr or git.
-here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd) || die "could not locate the skill directory"
 # shellcheck disable=SC1091
 source "$here/resolve-agent.sh" || die "could not source $here/resolve-agent.sh"
 resolve_agent || die "could not resolve the agent kind (HERDR_WS_KIND=${HERDR_WS_KIND:-} HERDR_WS_DEFAULT_KIND=$HERDR_WS_DEFAULT_KIND)"
@@ -221,12 +224,12 @@ if [ "$WS_BRIEF" = agents-md ]; then
     || die "could not deliver the implementer brief to the Codex stream in $tree"
   brief_via=$WS_BRIEF_VIA
   brief_prefix=$WS_BRIEF_PREFIX
-  if [ -n "${CLAUDE_CODE_MESSAGING_SOCKET:-}" ]; then
-    report_command=$(python3 "$here/../../scripts/report_to_orchestrator.py" prepare \
-      --worktree "$tree" --branch "$branch" --pane "$dev" \
-      --permission-mode "$WS_PERMISSION_MODE") \
-      || die "could not prepare the Codex reporting transport in $tree"
-  fi
+fi
+if [ "$report_destination" != none ] && { [ "$kind" = codex ] || [ "$report_destination" = codex ]; }; then
+  report_command=$(python3 "$here/../../scripts/report_to_orchestrator.py" prepare \
+    --worktree "$tree" --branch "$branch" --pane "$dev" \
+    --sender-kind "$kind" --permission-mode "$WS_PERMISSION_MODE") \
+    || die "could not prepare the reporting transport in $tree"
 fi
 
 herdr agent start "$agent" --kind "$kind" --pane "$dev" \
@@ -280,23 +283,23 @@ it for them; do your own work in the dev pane."
 
 # herdr cannot address the orchestrator: it names only the agents it started,
 # and the orchestrator is a plain pane. The cross-session socket reaches it.
-if [ "$kind" = codex ]; then
-  if [ -n "$report_command" ]; then
-    priming="$priming
+if [ -n "$report_command" ]; then
+  priming="$priming
 Report to the orchestrator by running this shell command (the destination is
 already configured):
   $report_command send started --message 'Acknowledged; getting ready.'
 Send that acknowledgement before working. For later reports use the same command
 with ready (PR open, not merged), blocked, or merged (merge landed and tree clean)
 instead of started, and put the branch, PR URL, and summary in --message.
-Use --message-file for multiline text. Follow your brief's reporting section."
-  else
-    priming="$priming
+Use --message-file for multiline text. This command takes precedence over any
+SendMessage or uds: reporting instructions in your brief. Do not send reports
+through another transport."
+elif [ "$kind" = codex ]; then
+  priming="$priming
 The orchestrator reporting transport is unavailable: the spawning session did
-not provide CLAUDE_CODE_MESSAGING_SOCKET. Show reports in your dev pane, including
+not provide a Claude inbox or Codex thread. Show reports in your dev pane, including
 the PR URL and summary; do not attempt a raw socket write."
-  fi
-elif [ -n "${CLAUDE_CODE_MESSAGING_SOCKET:-}" ]; then
+elif [ "$report_destination" = claude ]; then
   priming="$priming
 The orchestrator is uds:$CLAUDE_CODE_MESSAGING_SOCKET. Report there when you are
 done, as your brief describes."
@@ -339,7 +342,7 @@ fi
 sock=""
 [ -n "$pid" ] && [ -S "/tmp/cc-socks/$pid.sock" ] && sock="uds:/tmp/cc-socks/$pid.sock"
 address=${sock:-(not resolved; find it with ListAgents)}
-if [ "$kind" = codex ]; then
+if [ "$kind" = codex ] || [ "$report_destination" = codex ]; then
   address="herdr agent prompt $agent <message>"
 fi
 
