@@ -115,12 +115,12 @@ Use `--no-focus` by default whenever you create a herdr pane, tab, or workspace.
 Preserve the user's current focus unless they explicitly ask to switch to the
 new pane, tab, or workspace.
 
-Keep at most two panes open unless the user asks for more, and split them
-horizontally, never vertically. You start with the dev pane and, where the
-project has one, the artifact pane. When you split for a build, a test run or
-another agent, close that pane with `herdr pane close <id>` the moment the work
-is done, so you are back to two. A horizontal split keeps both panes full width,
-which is what a wide artifact needs.
+Keep at most two panes open unless the user asks for more, and split every new
+pane to the right (`herdr pane split <pane> --direction right --no-focus`), never
+down. You start with the dev pane and, where the project has one, the artifact
+pane. When you split for a build, a test run or another agent, close that pane
+with `herdr pane close <id>` the moment the work is done, so you are back to two.
+Side-by-side panes keep each one full height, which is what the user wants.
 
 ## Browsing the files
 
